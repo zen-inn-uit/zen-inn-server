@@ -16,6 +16,24 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum UserStatus {
+  ACTIVE
+  PENDING
+  BANNED
+}
+
+enum Provider {
+  PASSWORD
+  GOOGLE
+  FACEBOOK
+}
+
+enum OtpPurpose {
+  VERIFY_EMAIL
+  LOGIN
+  RESET
+}
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -26,14 +44,23 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  password  String
-  role      Role      @default(CUSTOMER)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  bookings  Booking[]
-  partner   Partner?
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String?
+  role         Role    @default(CUSTOMER)
+
+  status          UserStatus @default(PENDING)
+  provider        Provider   @default(PASSWORD)
+  providerId      String?
+  emailVerifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings Booking[]
+  partner  Partner?
+  sessions AuthSession[]
+  otps     OtpCode[]
 }
 
 model Partner {
@@ -77,4 +104,28 @@ model Booking {
   checkOut  DateTime
   status    BookingStatus @default(PENDING)
   createdAt DateTime      @default(now())
+}
+
+model AuthSession {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  refreshHash String
+  userAgent   String?
+  ip          String?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+}
+
+model OtpCode {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  purpose    OtpPurpose
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@index([userId, purpose])
 }
