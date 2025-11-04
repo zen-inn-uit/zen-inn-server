@@ -1,0 +1,80 @@
+enum Role {
+  CUSTOMER
+  PARTNER
+  ADMIN
+}
+
+enum KycStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  role      Role      @default(CUSTOMER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  bookings  Booking[]
+  partner   Partner?
+}
+
+model Partner {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id])
+  company   String?
+  hotels    Hotel[]
+  kycStatus KycStatus @default(PENDING)
+}
+
+model Hotel {
+  id        String   @id @default(cuid())
+  partnerId String
+  partner   Partner  @relation(fields: [partnerId], references: [id])
+  name      String
+  address   String
+  rooms     Room[]
+  createdAt DateTime @default(now())
+}
+
+model Room {
+  id        String    @id @default(cuid())
+  hotelId   String
+  hotel     Hotel     @relation(fields: [hotelId], references: [id])
+  name      String
+  price     Int
+  capacity  Int       @default(2)
+  images    String[]
+  createdAt DateTime  @default(now())
+  bookings  Booking[]
+}
+
+model Booking {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+  roomId    String
+  room      Room          @relation(fields: [roomId], references: [id])
+  checkIn   DateTime
+  checkOut  DateTime
+  status    BookingStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+}
