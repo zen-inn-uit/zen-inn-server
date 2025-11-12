@@ -1,16 +1,28 @@
+// main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
-import cookieParser from 'cookie-parser'
+import { ValidationPipe, RequestMethod } from '@nestjs/common'; // ⬅️ thêm RequestMethod
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
   app.use(cookieParser());
   app.use(helmet());
   app.enableCors({ origin: true, credentials: true });
-  app.setGlobalPrefix('api');
+
+  // ⬇️ Dùng RequestMethod.ALL thay vì để undefined
+  app.setGlobalPrefix('api', {
+    exclude: [
+      { path: 'oauth/google', method: RequestMethod.ALL },
+      { path: 'oauth/google/callback', method: RequestMethod.ALL },
+      { path: 'auth/facebook', method: RequestMethod.ALL },
+      { path: 'auth/facebook/callback', method: RequestMethod.ALL },
+    ],
+  });
+
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
   const config = new DocumentBuilder()

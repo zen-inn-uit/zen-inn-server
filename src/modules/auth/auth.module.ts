@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { JwtAccessStrategy } from './strategies/jwt-access.strategy';
-import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
-import { UsersModule } from '../users/users.module';
-import { MailerModule } from '../mailer/mailer.module';
 import { PrismaService } from '../../prisma.service';
+import { OauthController } from './oauth.controller';
+import { OauthService } from './oauth.service';
+import { MailerModule } from '../mailer/mailer.module';
 
 @Module({
-  imports: [UsersModule, MailerModule],
-  controllers: [AuthController],
-  providers: [AuthService, JwtAccessStrategy, JwtRefreshStrategy, PrismaService],
+  imports: [MailerModule],
+  controllers: [AuthController, OauthController], 
+  providers: [AuthService, OauthService, PrismaService],
+  exports: [AuthService],
 })
 export class AuthModule {}

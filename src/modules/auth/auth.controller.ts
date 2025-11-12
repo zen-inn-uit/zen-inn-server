@@ -1,54 +1,125 @@
-import { Body, Controller, Get, Headers, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, VerifyEmailDto, LoginOtpRequestDto, LoginOtpVerifyDto } from './dto';
-import { JwtAccessGuard, JwtRefreshGuard } from './guards';
+import {
+  RegisterDto,
+  VerifyEmailDto,
+  LoginDto,
+  LoginOtpRequestDto,
+  LoginOtpVerifyDto,
+  SetPasswordDto,
+  ForgotPasswordRequestDto,
+  ForgotPasswordVerifyDto,
+  ForgotPasswordResetDto,
+  ChangePasswordDto,
+} from './dto';
+import { JwtAccessGuard } from './guards/jwt.guard';
+import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import type { Request } from 'express';
+
+type AuthReq = Request & { user?: any };
+
 
 @Controller('auth')
 export class AuthController {
-  constructor(private auth: AuthService) {}
+  constructor(private readonly auth: AuthService) { }
 
+
+  // ======= Sign-up (email → otp → verify → set-password → tokens)
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.auth.register(dto.email, dto.password);
+  async register(@Body() dto: RegisterDto) {
+    await this.auth.register(dto.email);
+    return { message: 'OTP sent' };
   }
+
 
   @Post('verify-email')
-  verifyEmail(@Body() dto: VerifyEmailDto, @Req() req: any) {
-    return this.auth.verifyEmail(dto.email, dto.code, req.headers['user-agent'], req.ip);
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.auth.verifyEmail(dto.email, dto.code);
+    // Option A: return { verified: true }
+    // Option B: issue tokens immediately if you want (current design issues tokens in set-password)
   }
 
+
+  @Post('set-password')
+  async setPassword(@Body() dto: SetPasswordDto) {
+    // sets password only if user is verified
+    return this.auth.setPasswordAndIssueTokens(dto.email, dto.password);
+  }
+
+
+  // ======= Sign-in (email + password)
   @Post('login')
-  login(@Body() dto: LoginDto, @Req() req: any) {
-    return this.auth.loginPassword(dto.email, dto.password, req.headers['user-agent'], req.ip);
+  async login(@Body() dto: LoginDto) {
+    return this.auth.login(dto.email, dto.password);
   }
 
+
+  // ======= OTP Sign-in (optional)
   @Post('login/otp/request')
-  requestOtp(@Body() dto: LoginOtpRequestDto) {
-    return this.auth.requestLoginOtp(dto.email);
+  async requestLoginOtp(@Body() dto: LoginOtpRequestDto) {
+    await this.auth.requestLoginOtp(dto.email);
+    return { message: 'OTP sent' };
   }
 
   @Post('login/otp/verify')
-  verifyOtp(@Body() dto: LoginOtpVerifyDto, @Req() req: any) {
-    return this.auth.verifyLoginOtp(dto.email, dto.code, req.headers['user-agent'], req.ip);
+  async verifyLoginOtp(@Body() dto: LoginOtpVerifyDto) {
+    return this.auth.verifyLoginOtp(dto.email, dto.code);
   }
 
+
+  // ======= Refresh / Logout (Bearer refresh token)
   @UseGuards(JwtRefreshGuard)
   @Post('refresh')
-  refresh(@Req() req: any, @Headers('authorization') authz?: string) {
-    const refreshToken = authz?.startsWith('Bearer ') ? authz.slice(7) : '';
-    return this.auth.refresh(req.user.sub, refreshToken);
+  async refresh(@Req() req: AuthReq) {
+    const payload: any = req.user; // from JwtRefreshStrategy.validate
+    return this.auth.rotateTokens(payload.sub, payload.sid);
   }
+
 
   @UseGuards(JwtRefreshGuard)
   @Post('logout')
-  logout(@Req() req: any, @Headers('authorization') authz?: string) {
-    const refreshToken = authz?.startsWith('Bearer ') ? authz.slice(7) : '';
-    return this.auth.logout(req.user.sub, refreshToken);
+  async logout(@Req() req: AuthReq) {
+    const payload: any = req.user;
+    await this.auth.revokeSession(payload.sub, payload.sid);
+    return { ok: true };
   }
 
+
+  // ======= Forgot password (no login required)
+  @Post('forgot-password/request')
+  async forgotRequest(@Body() dto: ForgotPasswordRequestDto) {
+    await this.auth.forgotPasswordRequest(dto.email);
+    return { message: 'OTP sent' };
+  }
+
+  @Post('forgot-password/verify')
+  async forgotVerify(@Body() dto: ForgotPasswordVerifyDto) {
+    await this.auth.forgotPasswordVerify(dto.email, dto.code);
+    return { ok: true };
+  }
+
+
+  @Post('forgot-password/reset')
+  async forgotReset(@Body() dto: ForgotPasswordResetDto) {
+    await this.auth.forgotPasswordReset(dto.email, dto.newPassword);
+    return { ok: true };
+  }
+
+
+  // ======= Change password (must be logged in via access token)
+  @UseGuards(JwtAccessGuard)
+  @Post('change-password')
+  async changePassword(@Req() req: AuthReq, @Body() dto: ChangePasswordDto) {
+    const payload: any = req.user;
+    await this.auth.changePassword(payload.sub, dto.currentPassword, dto.newPassword);
+    return { ok: true };
+  }
+
+  // ======= Profile (Bearer access token)
   @UseGuards(JwtAccessGuard)
   @Get('profile')
-  profile(@Req() req: any) {
-    return { userId: req.user.sub, role: req.user.role };
+  async profile(@Req() req: AuthReq) {
+    const payload: any = req.user; // { sub, role, sid, ... }
+    return this.auth.getProfile(payload.sub);
   }
 }
