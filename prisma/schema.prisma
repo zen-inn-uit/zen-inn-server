@@ -70,6 +70,8 @@ model Partner {
   company   String?
   hotels    Hotel[]
   kycStatus KycStatus @default(PENDING)
+
+  kycDocuments KycDocument[]
 }
 
 model Hotel {
@@ -128,4 +130,17 @@ model OtpCode {
   createdAt  DateTime   @default(now())
 
   @@index([userId, purpose])
+}
+
+model KycDocument {
+  id        String  @id @default(cuid())
+  partnerId String
+  partner   Partner @relation(fields: [partnerId], references: [id])
+
+  kind String
+  url  String
+
+  createdAt DateTime @default(now())
+
+  @@index([partnerId, kind])
 }
