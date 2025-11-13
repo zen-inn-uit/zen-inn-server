@@ -7,6 +7,7 @@ import { MailerModule } from './modules/mailer/mailer.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AssetsModule } from './modules/assets/assets.module';
 import { PartnersModule } from './modules/partners/partners.module';
+import { HotelsModule } from './modules/hotels/hotels.module';
 
 
 
@@ -18,6 +19,7 @@ import { PartnersModule } from './modules/partners/partners.module';
     AuthModule,
     AssetsModule,
     PartnersModule,
+    HotelsModule,
   ],
   controllers: [HealthController],
   providers: [PrismaService],

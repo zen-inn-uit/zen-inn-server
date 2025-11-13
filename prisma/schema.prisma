@@ -34,6 +34,12 @@ enum OtpPurpose {
   RESET
 }
 
+enum HotelStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -78,10 +84,23 @@ model Hotel {
   id        String   @id @default(cuid())
   partnerId String
   partner   Partner  @relation(fields: [partnerId], references: [id])
-  name      String
-  address   String
+
+  name        String
+  address     String            // địa chỉ cụ thể (số nhà, đường)
+  city        String
+  country     String
+  starRating  Int?              // 1..5, nullable nếu chưa set
+  phone       String?
+  description String?
+  images      String[] @default([])
+
+  status    HotelStatus @default(DRAFT)
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?  // xóa mềm
+
   rooms     Room[]
-  createdAt DateTime @default(now())
 }
 
 model Room {
