@@ -56,6 +56,15 @@ enum AmenityCategory {
   ACCESSIBILITY
 }
 
+enum BedType {
+  SINGLE
+  DOUBLE
+  QUEEN
+  KING
+  TWIN
+  BUNK
+}
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -141,13 +150,13 @@ model Room {
   discountPercent Int?      // phần trăm giảm giá (0-100)
   
   capacity        Int       @default(2)    // số người
-  bedCount        Int       @default(1)    // số giường
   area            Float?    // diện tích (feet² hoặc m²)
   
   availableCount  Int       @default(0)    // số phòng còn lại
   totalCount      Int       @default(1)    // tổng số phòng loại này
   
   images          RoomImage[]
+  beds            Bed[]
   amenities       RoomAmenity[]
   deals           Deal[]
   bookingStyles   RoomBookingStyle[]
@@ -155,6 +164,17 @@ model Room {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   bookings        Booking[]
+}
+
+model Bed {
+  id        String    @id @default(cuid())
+  roomId    String
+  room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  
+  bedType   BedType   // QUEEN, KING, TWIN, DOUBLE, SINGLE, BUNK
+  quantity  Int       @default(1) // số lượng giường loại này
+  
+  createdAt DateTime  @default(now())
 }
 
 model RoomImage {
