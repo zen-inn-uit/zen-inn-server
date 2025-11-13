@@ -40,6 +40,22 @@ enum HotelStatus {
   INACTIVE
 }
 
+enum DealType {
+  LATE_ESCAPE
+  EARLY_BIRD
+  FLASH_SALE
+  SEASONAL
+}
+
+enum AmenityCategory {
+  ROOM_FEATURE
+  BATHROOM
+  ENTERTAINMENT
+  CONVENIENCE
+  SAFETY
+  ACCESSIBILITY
+}
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -92,27 +108,110 @@ model Hotel {
   starRating  Int?              // 1..5, nullable nếu chưa set
   phone       String?
   description String?
-  images      String[] @default([])
+  images      HotelImage[]
 
   status    HotelStatus @default(DRAFT)
 
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
-  deletedAt DateTime?  // xóa mềm
+  deletedAt DateTime?
 
   rooms     Room[]
 }
 
-model Room {
-  id        String    @id @default(cuid())
+model HotelImage {
+  id        String   @id @default(cuid())
   hotelId   String
-  hotel     Hotel     @relation(fields: [hotelId], references: [id])
-  name      String
-  price     Int
-  capacity  Int       @default(2)
-  images    String[]
-  createdAt DateTime  @default(now())
-  bookings  Booking[]
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  url       String
+  displayOrder Int @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Room {
+  id              String    @id @default(cuid())
+  hotelId         String
+  hotel           Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  
+  name            String    // "Deluxe Double Room"
+  roomType        String    // loại phòng
+  description     String?
+  price           Int       // giá mỗi đêm (tính theo cent)
+  originalPrice   Int?      // giá gốc nếu có discount
+  discountPercent Int?      // phần trăm giảm giá (0-100)
+  
+  capacity        Int       @default(2)    // số người
+  bedCount        Int       @default(1)    // số giường
+  area            Float?    // diện tích (feet² hoặc m²)
+  
+  availableCount  Int       @default(0)    // số phòng còn lại
+  totalCount      Int       @default(1)    // tổng số phòng loại này
+  
+  images          RoomImage[]
+  amenities       RoomAmenity[]
+  deals           Deal[]
+  bookingStyles   RoomBookingStyle[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  bookings        Booking[]
+}
+
+model RoomImage {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  url       String
+  displayOrder Int @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Amenity {
+  id          String  @id @default(cuid())
+  name        String  // "Air conditioning", "Private bathroom"
+  description String?
+  icon        String?
+  category    AmenityCategory
+  createdAt   DateTime @default(now())
+  
+  roomAmenities RoomAmenity[]
+  
+  @@unique([name])
+}
+
+model RoomAmenity {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  amenityId String
+  amenity   Amenity  @relation(fields: [amenityId], references: [id])
+  createdAt DateTime @default(now())
+  
+  @@unique([roomId, amenityId])
+}
+
+model Deal {
+  id          String    @id @default(cuid())
+  roomId      String
+  room        Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  name        String    // "Late Escape Deal", "Flash Sale"
+  description String?
+  dealType    DealType
+  badge       String?   // text hiển thị trên badge
+  validFrom   DateTime
+  validUntil  DateTime
+  createdAt   DateTime  @default(now())
+}
+
+model RoomBookingStyle {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  style     String   // "Free cancellation anytime", "No prepayment needed", "No credit card needed"
+  description String?
+  icon      String?
+  priority  Int @default(0)
+  createdAt DateTime @default(now())
 }
 
 model Booking {
@@ -130,7 +229,7 @@ model Booking {
 model AuthSession {
   id          String    @id @default(cuid())
   userId      String
-  user        User      @relation(fields: [userId], references: [id])
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshHash String
   userAgent   String?
   ip          String?

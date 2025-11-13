@@ -11,7 +11,7 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { email },
-    update: {},   // không sửa gì nếu admin đã tồn tại
+    update: {}, // không sửa gì nếu admin đã tồn tại
     create: {
       email,
       passwordHash: hash,

@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../../prisma.service';
 import { CreateHotelDto } from './dto/create-hotel.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
-import { HotelStatus, KycStatus } from '@prisma/client';
+import { HotelStatus, KycStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class HotelsService {
@@ -48,7 +48,12 @@ export class HotelsService {
         starRating: dto.starRating,
         phone: dto.phone,
         description: dto.description,
-        images: dto.images ?? [],
+        images: {
+          create: (dto.images ?? []).map((url, index) => ({
+            url,
+            displayOrder: index,
+          })),
+        },
         status: HotelStatus.DRAFT,
       },
     });
@@ -108,19 +113,31 @@ export class HotelsService {
       throw new NotFoundException('Không tìm thấy khách sạn.');
     }
 
+    const updateData: Record<string, unknown> = {};
+
+    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.address !== undefined) updateData.address = dto.address;
+    if (dto.city !== undefined) updateData.city = dto.city;
+    if (dto.country !== undefined) updateData.country = dto.country;
+    if (dto.starRating !== undefined) updateData.starRating = dto.starRating;
+    if (dto.phone !== undefined) updateData.phone = dto.phone;
+    if (dto.description !== undefined) updateData.description = dto.description;
+    if (dto.status !== undefined) updateData.status = dto.status;
+
+    // Xử lý images: xóa tất cả cũ và tạo mới
+    if (dto.images !== undefined) {
+      updateData.images = {
+        deleteMany: {},
+        create: (dto.images ?? []).map((url, index) => ({
+          url,
+          displayOrder: index,
+        })),
+      };
+    }
+
     return this.prisma.hotel.update({
       where: { id: hotelId },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name } : {}),
-        ...(dto.address !== undefined ? { address: dto.address } : {}),
-        ...(dto.city !== undefined ? { city: dto.city } : {}),
-        ...(dto.country !== undefined ? { country: dto.country } : {}),
-        ...(dto.starRating !== undefined ? { starRating: dto.starRating } : {}),
-        ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
-        ...(dto.description !== undefined ? { description: dto.description } : {}),
-        ...(dto.images !== undefined ? { images: dto.images } : {}),
-        ...(dto.status !== undefined ? { status: dto.status } : {}),
-      },
+      data: updateData as Prisma.HotelUpdateInput,
     });
   }
 
