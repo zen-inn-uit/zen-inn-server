@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, UseGuards, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  UseGuards,
+  Req,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -22,13 +31,21 @@ import { JwtAccessGuard } from './guards/jwt.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import type { Request } from 'express';
 
-type AuthReq = Request & { user?: any };
+interface JwtPayload {
+  sub: string;
+  role: string;
+  sid: string;
+  iat: number;
+  exp: number;
+  iss: string;
+}
+
+type AuthReq = Request & { user?: JwtPayload };
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) { }
-
+  constructor(private readonly auth: AuthService) {}
 
   // ======= Sign-up (email → otp → verify → set-password → tokens)
   @Post('register')
@@ -54,6 +71,7 @@ export class AuthController {
   }
 
   // ======= Sign-in (email + password)
+  @HttpCode(HttpStatus.OK)
   @Post('login')
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({ status: 200, description: 'Tokens issued' })
@@ -84,7 +102,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiResponse({ status: 200, description: 'New tokens issued' })
   async refresh(@Req() req: AuthReq) {
-    const payload: any = req.user;
+    const payload = req.user!;
     return this.auth.rotateTokens(payload.sub, payload.sid);
   }
 
@@ -94,7 +112,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout and revoke session' })
   @ApiResponse({ status: 200, description: 'Successfully logged out' })
   async logout(@Req() req: AuthReq) {
-    const payload: any = req.user;
+    const payload = req.user!;
     await this.auth.revokeSession(payload.sub, payload.sid);
     return { ok: true };
   }
@@ -131,7 +149,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Change password for authenticated user' })
   @ApiResponse({ status: 200, description: 'Password changed successfully' })
   async changePassword(@Req() req: AuthReq, @Body() dto: ChangePasswordDto) {
-    const payload: any = req.user;
+    const payload = req.user!;
     await this.auth.changePassword(
       payload.sub,
       dto.currentPassword,
@@ -147,7 +165,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({ status: 200, description: 'User profile' })
   async profile(@Req() req: AuthReq) {
-    const payload: any = req.user;
+    const payload = req.user!;
     return this.auth.getProfile(payload.sub);
   }
 }
