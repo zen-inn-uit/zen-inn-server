@@ -26,7 +26,7 @@ import { Role } from '@prisma/client';
 @ApiTags('Rooms')
 @ApiBearerAuth()
 @UseGuards(JwtAccessGuard)
-@Controller('api/partners/hotels/:hotelId/rooms')
+@Controller('partners/hotels/:hotelId/rooms')
 export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 

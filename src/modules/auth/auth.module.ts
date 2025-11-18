@@ -23,10 +23,7 @@ import { PrismaService } from '../../prisma.service';
     UsersModule,
     MailerModule,
   ],
-  controllers: [
-    AuthController,
-    OauthController,
-  ],
+  controllers: [AuthController, OauthController],
   providers: [
     AuthService,
     OauthService,

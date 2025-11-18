@@ -117,7 +117,7 @@ export class RoomsService {
           },
         },
         deals: true,
-        bookingStyles: true,
+        ratePlans: true,
       },
     });
   }
@@ -138,7 +138,7 @@ export class RoomsService {
           },
         },
         deals: true,
-        bookingStyles: true,
+        ratePlans: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -161,7 +161,7 @@ export class RoomsService {
           },
         },
         deals: true,
-        bookingStyles: true,
+        ratePlans: true,
       },
     });
 
@@ -275,7 +275,7 @@ export class RoomsService {
           },
         },
         deals: true,
-        bookingStyles: true,
+        ratePlans: true,
       },
     });
   }

@@ -25,13 +25,17 @@ import { Role } from '@prisma/client';
 @ApiTags('Deals')
 @ApiBearerAuth()
 @UseGuards(JwtAccessGuard)
-@Controller('api/partners/hotels/:hotelId/rooms/:roomId/deals')
+@Controller('partners/hotels/:hotelId/rooms/:roomId/deals')
 export class DealsController {
   constructor(private readonly dealsService: DealsService) {}
 
   @Post()
   @Roles(Role.PARTNER)
-  @ApiOperation({ summary: 'Tạo deal mới' })
+  @ApiOperation({
+    summary: 'Tạo deal',
+    description:
+      'Tạo các gói giá cơ bản như Early Bird, Late Escape, Flash Sale, Seasonal',
+  })
   @ApiParam({ name: 'hotelId', description: 'Hotel ID' })
   @ApiParam({ name: 'roomId', description: 'Room ID' })
   @ApiCreatedResponse()

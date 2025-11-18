@@ -12,7 +12,8 @@ import { PartnersModule } from './modules/partners/partners.module';
 import { HotelsModule } from './modules/hotels/hotels.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
 import { DealsModule } from './modules/deals/deals.module';
-import { BookingStylesModule } from './modules/booking-styles/booking-styles.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { RatePlansModule } from './modules/rate-plans/rate-plans.module';
 
 @Module({
   imports: [
@@ -25,7 +26,8 @@ import { BookingStylesModule } from './modules/booking-styles/booking-styles.mod
     HotelsModule,
     RoomsModule,
     DealsModule,
-    BookingStylesModule,
+    InventoryModule,
+    RatePlansModule,
   ],
   controllers: [HealthController],
   providers: [
