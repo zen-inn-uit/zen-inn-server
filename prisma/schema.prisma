@@ -158,8 +158,8 @@ model Room {
   images          RoomImage[]
   beds            Bed[]
   amenities       RoomAmenity[]
+  ratePlans       RatePlan[]
   deals           Deal[]
-  bookingStyles   RoomBookingStyle[]
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -210,6 +210,53 @@ model RoomAmenity {
   @@unique([roomId, amenityId])
 }
 
+model RatePlan {
+  id                      String    @id @default(cuid())
+  roomId                  String
+  room                    Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  
+  // Thông tin cơ bản
+  name                    String    // "BAR", "Non-refundable Rate", "Breakfast Included"
+  description             String?
+  rateCode                String?   // mã rate plan (e.g., "BAR", "NR", "BIC")
+  
+  // Giá
+  basePrice               Int       // giá cơ bản (tính theo cent)
+  minLos                  Int @default(1) // minimum length of stay (đêm)
+  maxLos                  Int?       // maximum length of stay
+  
+  // Thời gian áp dụng
+  validFrom               DateTime
+  validUntil              DateTime
+  
+  // Chính sách
+  cancellationPolicy      String?   // "Free before 48h", "No refund", "Non-refundable"
+  refundablePercent       Int @default(100) // % hoàn tiền (0-100)
+  depositRequired         Boolean @default(false) // yêu cầu đặt cọc
+  depositPercent          Int @default(0) // % đặt cọc (0-100)
+  
+  // Điều kiện lưu trú
+  includesBreakfast       Boolean @default(false)
+  includesDinner          Boolean @default(false)
+  includesParking         Boolean @default(false)
+  otherInclusions         String?   // các dịch vụ khác bao gồm
+  
+  // Điều kiện khách
+  minGuestCount           Int @default(1)
+  maxGuestCount           Int?
+  
+  // Quy định thay đổi
+  modificationAllowed      Boolean @default(true)
+  modificationFee         Int @default(0) // phí thay đổi (tính theo cent)
+  
+  // Loại rate plan (để phân loại)
+  rateType                String? // "BAR", "CORPORATE", "LONG_STAY", etc
+  
+  active                  Boolean @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
 model Deal {
   id          String    @id @default(cuid())
   roomId      String
@@ -221,17 +268,6 @@ model Deal {
   validFrom   DateTime
   validUntil  DateTime
   createdAt   DateTime  @default(now())
-}
-
-model RoomBookingStyle {
-  id        String   @id @default(cuid())
-  roomId    String
-  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  style     String   // "Free cancellation anytime", "No prepayment needed", "No credit card needed"
-  description String?
-  icon      String?
-  priority  Int @default(0)
-  createdAt DateTime @default(now())
 }
 
 model Booking {
