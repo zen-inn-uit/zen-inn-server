@@ -10,4 +10,3 @@ export class VerifyEmailDto {
   @Length(6, 6)
   code: string;
 }
-

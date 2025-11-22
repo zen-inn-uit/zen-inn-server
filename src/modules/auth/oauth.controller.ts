@@ -18,13 +18,16 @@ export class OauthController {
       access_type: 'offline',
       prompt: 'consent',
     });
-    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+    res.redirect(
+      `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+    );
   }
 
   // B2: callback nhận code
   @Get('oauth/google/callback')
   async googleCallback(@Query('code') code: string, @Res() res: Response) {
-    const { accessToken, refreshToken } = await this.oauth.handleGoogleCallback(code);
+    const { accessToken, refreshToken } =
+      await this.oauth.handleGoogleCallback(code);
     // Tuỳ bạn: redirect về FE kèm token, hoặc hiển thị JSON
     return res.json({ accessToken, refreshToken });
   }
@@ -38,12 +41,15 @@ export class OauthController {
       response_type: 'code',
       scope: 'email,public_profile',
     });
-    res.redirect(`https://www.facebook.com/v18.0/dialog/oauth?${params.toString()}`);
+    res.redirect(
+      `https://www.facebook.com/v18.0/dialog/oauth?${params.toString()}`,
+    );
   }
 
   @Get('auth/facebook/callback')
   async facebookCallback(@Query('code') code: string, @Res() res: Response) {
-    const { accessToken, refreshToken } = await this.oauth.handleFacebookCallback(code);
+    const { accessToken, refreshToken } =
+      await this.oauth.handleFacebookCallback(code);
     return res.json({ accessToken, refreshToken });
   }
 }

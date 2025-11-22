@@ -25,9 +25,12 @@ export class OauthService {
     const idToken = tokenRes.data.id_token;
     const access = tokenRes.data.access_token;
 
-    const userinfoRes = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${access}` },
-    });
+    const userinfoRes = await axios.get(
+      'https://www.googleapis.com/oauth2/v3/userinfo',
+      {
+        headers: { Authorization: `Bearer ${access}` },
+      },
+    );
 
     const { sub, email, email_verified, name, picture } = userinfoRes.data;
 
@@ -59,14 +62,17 @@ export class OauthService {
   // ========== FACEBOOK ==========
   async handleFacebookCallback(code: string) {
     // exchange code -> access token
-    const tokenRes = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
-      params: {
-        client_id: process.env.FACEBOOK_CLIENT_ID!,
-        client_secret: process.env.FACEBOOK_CLIENT_SECRET!,
-        redirect_uri: process.env.FACEBOOK_REDIRECT_URI!,
-        code,
+    const tokenRes = await axios.get(
+      'https://graph.facebook.com/v18.0/oauth/access_token',
+      {
+        params: {
+          client_id: process.env.FACEBOOK_CLIENT_ID!,
+          client_secret: process.env.FACEBOOK_CLIENT_SECRET!,
+          redirect_uri: process.env.FACEBOOK_REDIRECT_URI!,
+          code,
+        },
       },
-    });
+    );
 
     const access = tokenRes.data.access_token;
     // fetch profile + email

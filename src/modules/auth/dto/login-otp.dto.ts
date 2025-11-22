@@ -16,4 +16,3 @@ export class LoginOtpVerifyDto {
   @Length(6, 6)
   code: string;
 }
-

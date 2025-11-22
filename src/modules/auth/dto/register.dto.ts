@@ -15,4 +15,3 @@ export class RegisterDto {
   @Length(8, 72)
   password?: string;
 }
-

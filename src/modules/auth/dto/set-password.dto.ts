@@ -15,7 +15,10 @@ export class SetPasswordDto {
   @Length(8, 72)
   @Matches(
     /^(?:(?=.*[a-z])(?=.*[A-Z])(?=.*\d)|(?=.*[a-z])(?=.*[A-Z])(?=.*[^\w\s])|(?=.*[a-z])(?=.*\d)(?=.*[^\w\s])|(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s])).+$/,
-    { message: 'Password must include at least 3 of: lower, upper, number, special.' },
+    {
+      message:
+        'Password must include at least 3 of: lower, upper, number, special.',
+    },
   )
   password: string;
 }

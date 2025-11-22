@@ -11,5 +11,7 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt') {
       ignoreExpiration: false,
     });
   }
-  validate(payload: any) { return payload; }
+  validate(payload: any) {
+    return payload;
+  }
 }

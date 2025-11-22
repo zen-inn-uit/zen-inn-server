@@ -1,5 +1,9 @@
 // src/modules/auth/auth.service.ts
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import * as argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { PrismaService } from '../../prisma.service';
@@ -14,28 +18,26 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private mailer: MailerService,
-  ) { }
+  ) {}
   private signAccess(sub: string, role: Role, sid: string) {
-    return jwt.sign(
-      { sub, role, sid },
-      process.env.JWT_ACCESS_SECRET!,
-      { expiresIn: process.env.JWT_ACCESS_TTL ?? '15m', issuer: 'zen-inn' } as any
-    );
+    return jwt.sign({ sub, role, sid }, process.env.JWT_ACCESS_SECRET!, {
+      expiresIn: process.env.JWT_ACCESS_TTL ?? '15m',
+      issuer: 'zen-inn',
+    } as any);
   }
 
   private signRefresh(sub: string, sid: string) {
-    return jwt.sign(
-      { sub, sid },
-      process.env.JWT_REFRESH_SECRET!,
-      { expiresIn: process.env.JWT_REFRESH_TTL ?? '30d', issuer: 'zen-inn' } as any
-    );
+    return jwt.sign({ sub, sid }, process.env.JWT_REFRESH_SECRET!, {
+      expiresIn: process.env.JWT_REFRESH_TTL ?? '30d',
+      issuer: 'zen-inn',
+    } as any);
   }
 
   private async createSession(userId: string) {
     const session = await this.prisma.authSession.create({
       data: {
         userId,
-        refreshHash: '',   // thêm dòng này để hợp schema
+        refreshHash: '', // thêm dòng này để hợp schema
         createdAt: now(),
       },
     });
@@ -50,7 +52,6 @@ export class AuthService {
 
     return { sessionId: session.id, refreshToken };
   }
-
 
   private async issueTokens(userId: string, role: Role) {
     const { sessionId, refreshToken } = await this.createSession(userId);
@@ -99,7 +100,6 @@ export class AuthService {
     await this.mailer.sendVerifyEmail(email, code);
   }
 
-
   async verifyEmail(email: string, code: string) {
     const user = await this.mustGetUserByEmail(email);
 
@@ -134,7 +134,8 @@ export class AuthService {
 
   async setPasswordAndIssueTokens(email: string, password: string) {
     const user = await this.mustGetUserByEmail(email);
-    if (!user.emailVerifiedAt) throw new BadRequestException('Email not verified');
+    if (!user.emailVerifiedAt)
+      throw new BadRequestException('Email not verified');
 
     const passwordHash = await argon2.hash(password);
     await this.prisma.user.update({
@@ -166,7 +167,8 @@ export class AuthService {
 
   async requestLoginOtp(email: string) {
     const user = await this.mustGetUserByEmail(email);
-    if (!user.emailVerifiedAt) throw new BadRequestException('Email not verified');
+    if (!user.emailVerifiedAt)
+      throw new BadRequestException('Email not verified');
 
     const code = this.generateOtp();
     const codeHash = await argon2.hash(code);
@@ -270,7 +272,10 @@ export class AuthService {
     const ok = await argon2.verify(otp.codeHash, code);
     if (!ok) throw new BadRequestException('Invalid OTP');
 
-    await this.prisma.otpCode.update({ where: { id: otp.id }, data: { consumedAt: now() } });
+    await this.prisma.otpCode.update({
+      where: { id: otp.id },
+      data: { consumedAt: now() },
+    });
     return { ok: true };
   }
 
@@ -279,8 +284,14 @@ export class AuthService {
     const hash = await argon2.hash(newPassword);
 
     await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id: user.id }, data: { passwordHash: hash, provider: Provider.PASSWORD } }),
-      this.prisma.authSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: now() } }),
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: hash, provider: Provider.PASSWORD },
+      }),
+      this.prisma.authSession.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: now() },
+      }),
     ]);
   }
 
@@ -288,17 +299,28 @@ export class AuthService {
   // 6) CHANGE PASSWORD (need access token)
   // =========================================================================
 
-  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.passwordHash) throw new BadRequestException('Invalid user');
+    if (!user || !user.passwordHash)
+      throw new BadRequestException('Invalid user');
 
     const ok = await argon2.verify(user.passwordHash, currentPassword);
     if (!ok) throw new UnauthorizedException('Current password is incorrect');
 
     const hash = await argon2.hash(newPassword);
     await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id: userId }, data: { passwordHash: hash, provider: Provider.PASSWORD } }),
-      this.prisma.authSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now() } }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash: hash, provider: Provider.PASSWORD },
+      }),
+      this.prisma.authSession.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: now() },
+      }),
     ]);
   }
 
@@ -328,5 +350,4 @@ export class AuthService {
   public async issueTokensForUser(userId: string, role: Role) {
     return this['issueTokens'](userId, role);
   }
-
 }
