@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { KycStatus, Role } from '@prisma/client';
 import { UpsertPartnerDto } from './dto/upsert-partner.dto';

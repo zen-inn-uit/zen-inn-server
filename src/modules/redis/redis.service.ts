@@ -5,10 +5,9 @@ import Redis from 'ioredis';
 export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private readonly client: Redis;
-  private readonly lockTTL = 10; // seconds
+  private readonly lockTTL = 60; // seconds
 
   constructor() {
-    // Use REDIS_URL if available, otherwise fall back to individual config
     const redisUrl = process.env.REDIS_URL;
 
     this.client = redisUrl
@@ -37,17 +36,8 @@ export class RedisService implements OnModuleDestroy {
     });
   }
 
-  /**
-   * Acquire a distributed lock
-   * @param key Lock key
-   * @param ttl Time to live in seconds (default: 10s)
-   * @returns true if lock acquired, false otherwise
-   */
   async acquireLock(key: string, ttl: number = this.lockTTL): Promise<boolean> {
     try {
-      // SET key value NX EX ttl
-      // NX: Only set if key doesn't exist
-      // EX: Set expiration time in seconds
       const result = await this.client.set(key, '1', 'EX', ttl, 'NX');
       return result === 'OK';
     } catch (error) {
@@ -56,10 +46,6 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
-  /**
-   * Release a distributed lock
-   * @param key Lock key
-   */
   async releaseLock(key: string): Promise<void> {
     try {
       await this.client.del(key);
@@ -68,21 +54,12 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
-  /**
-   * Generate booking lock key
-   * @param roomId Room ID
-   * @param checkIn Check-in date
-   * @param checkOut Check-out date
-   */
   getBookingLockKey(roomId: string, checkIn: Date, checkOut: Date): string {
     const checkInStr = checkIn.toISOString().split('T')[0];
     const checkOutStr = checkOut.toISOString().split('T')[0];
     return `booking:lock:${roomId}:${checkInStr}:${checkOutStr}`;
   }
 
-  /**
-   * Set a value in Redis with optional TTL
-   */
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
     if (ttlSeconds) {
       await this.client.set(key, value, 'EX', ttlSeconds);
@@ -91,23 +68,14 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
-  /**
-   * Get a value from Redis
-   */
   async get(key: string): Promise<string | null> {
     return await this.client.get(key);
   }
 
-  /**
-   * Delete a key from Redis
-   */
   async del(key: string): Promise<void> {
     await this.client.del(key);
   }
 
-  /**
-   * Check if key exists
-   */
   async exists(key: string): Promise<boolean> {
     const result = await this.client.exists(key);
     return result === 1;

@@ -14,10 +14,14 @@ import { RoomsModule } from './modules/rooms/rooms.module';
 import { DealsModule } from './modules/deals/deals.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { RatePlansModule } from './modules/rate-plans/rate-plans.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { PaymentModule } from './modules/payment/payment.module';
+import { BookingsModule } from './modules/bookings/bookings.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    RedisModule,
     UsersModule,
     MailerModule,
     AuthModule,
@@ -28,6 +32,8 @@ import { RatePlansModule } from './modules/rate-plans/rate-plans.module';
     DealsModule,
     InventoryModule,
     RatePlansModule,
+    PaymentModule,
+    BookingsModule,
   ],
   controllers: [HealthController],
   providers: [
