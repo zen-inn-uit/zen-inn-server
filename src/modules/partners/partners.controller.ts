@@ -112,4 +112,3 @@ export class PartnersController {
     return this.partners.rejectPartner(adminId, partnerId);
   }
 }
-

@@ -12,15 +12,36 @@ export class UsersService {
 
   createPasswordUser(email: string, passwordHash: string) {
     return this.prisma.user.create({
-      data: { email, passwordHash, status: UserStatus.PENDING, provider: Provider.PASSWORD },
+      data: {
+        email,
+        passwordHash,
+        status: UserStatus.PENDING,
+        provider: Provider.PASSWORD,
+      },
     });
   }
 
-  upsertOAuthUser(email: string, provider: Provider, providerId: string, verified = false) {
+  upsertOAuthUser(
+    email: string,
+    provider: Provider,
+    providerId: string,
+    verified = false,
+  ) {
     return this.prisma.user.upsert({
       where: { email },
-      update: { provider, providerId, emailVerifiedAt: verified ? new Date() : null, status: UserStatus.ACTIVE },
-      create: { email, provider, providerId, emailVerifiedAt: verified ? new Date() : null, status: UserStatus.ACTIVE },
+      update: {
+        provider,
+        providerId,
+        emailVerifiedAt: verified ? new Date() : null,
+        status: UserStatus.ACTIVE,
+      },
+      create: {
+        email,
+        provider,
+        providerId,
+        emailVerifiedAt: verified ? new Date() : null,
+        status: UserStatus.ACTIVE,
+      },
     });
   }
 }

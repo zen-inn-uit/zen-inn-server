@@ -76,4 +76,3 @@ export class UpdateHotelDto {
   @IsOptional()
   status?: HotelStatus;
 }
-
