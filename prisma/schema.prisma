@@ -65,6 +65,20 @@ enum BedType {
   BUNK
 }
 
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  SEPAY
+  BANK_TRANSFER
+  CASH
+}
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -276,10 +290,39 @@ model Booking {
   user      User          @relation(fields: [userId], references: [id])
   roomId    String
   room      Room          @relation(fields: [roomId], references: [id])
+  
+  // Date range
   checkIn   DateTime
   checkOut  DateTime
+  nightCount Int
+  
+  // Guest information
+  guestName  String
+  guestEmail String
+  guestPhone String
+  guestCount Int
+  
+  // Pricing
+  totalPrice Int  // in cents
+  
+  // Payment
+  paymentMethod    PaymentMethod
+  paymentStatus    PaymentStatus @default(PENDING)
+  paymentIntentId  String?
+  transactionId    String?
+  
+  // Additional info
+  specialRequests  String?
+  
+  // Status
   status    BookingStatus @default(PENDING)
+  
+  // Cancellation
+  cancelledAt       DateTime?
+  cancellationReason String?
+  
   createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 }
 
 model AuthSession {
