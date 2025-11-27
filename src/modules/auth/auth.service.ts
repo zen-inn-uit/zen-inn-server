@@ -8,6 +8,7 @@ import * as argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { PrismaService } from '../../prisma.service';
 import { MailerService } from '../../modules/mailer/mailer.service';
+import { LoggingService } from '../logging/logging.service';
 import { OtpPurpose, Provider, Role } from '@prisma/client';
 
 const now = () => new Date();
@@ -18,6 +19,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private mailer: MailerService,
+    private loggingService: LoggingService,
   ) {}
   private signAccess(sub: string, role: Role, sid: string) {
     return jwt.sign({ sub, role, sid }, process.env.JWT_ACCESS_SECRET!, {
@@ -98,6 +100,16 @@ export class AuthService {
     });
 
     await this.mailer.sendVerifyEmail(email, code);
+
+    // Log registration
+    await this.loggingService.logAuthEvent(
+      'user_registered',
+      user.id,
+      `User registered with email ${email}`,
+      undefined,
+      undefined,
+      { email },
+    );
   }
 
   async verifyEmail(email: string, code: string) {
@@ -150,13 +162,23 @@ export class AuthService {
   // 2) SIGN-IN (email + password)
   // =========================================================================
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, ipAddress?: string, userAgent?: string) {
     const user = await this.mustGetUserByEmail(email);
     if (!user.emailVerifiedAt || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
     }
     const ok = await argon2.verify(user.passwordHash, password);
     if (!ok) throw new UnauthorizedException('Invalid credentials');
+
+    // Log successful login
+    await this.loggingService.logAuthEvent(
+      'user_login',
+      user.id,
+      `User logged in: ${email}`,
+      ipAddress,
+      userAgent,
+      { email, provider: 'password' },
+    );
 
     return this.issueTokens(user.id, user.role);
   }
@@ -322,6 +344,13 @@ export class AuthService {
         data: { revokedAt: now() },
       }),
     ]);
+
+    // Log password change
+    await this.loggingService.logAuthEvent(
+      'password_changed',
+      userId,
+      'User changed password',
+    );
   }
 
   // =========================================================================

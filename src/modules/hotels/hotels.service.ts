@@ -4,13 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { LoggingService } from '../logging/logging.service';
 import { CreateHotelDto } from './dto/create-hotel.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
 import { HotelStatus, KycStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class HotelsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly loggingService: LoggingService,
+  ) {}
 
   /**
    * Lấy partner tương ứng với user và kiểm tra KYC đã được duyệt hay chưa.
@@ -38,7 +42,7 @@ export class HotelsService {
   async createForUser(userId: string, dto: CreateHotelDto) {
     const partner = await this.getApprovedPartnerForUser(userId);
 
-    return this.prisma.hotel.create({
+    const hotel = await this.prisma.hotel.create({
       data: {
         partnerId: partner.id,
         name: dto.name,
@@ -57,6 +61,21 @@ export class HotelsService {
         status: HotelStatus.DRAFT,
       },
     });
+
+    // Log hotel creation
+    await this.loggingService.logHotelEvent(
+      'hotel_created',
+      hotel.id,
+      userId,
+      `Hotel created: ${dto.name}`,
+      {
+        hotelName: dto.name,
+        city: dto.city,
+        country: dto.country,
+      },
+    );
+
+    return hotel;
   }
 
   /**
@@ -138,6 +157,16 @@ export class HotelsService {
     return this.prisma.hotel.update({
       where: { id: hotelId },
       data: updateData as Prisma.HotelUpdateInput,
+    }).then(async (updatedHotel) => {
+      // Log hotel update
+      await this.loggingService.logHotelEvent(
+        'hotel_updated',
+        hotelId,
+        userId,
+        `Hotel updated: ${updatedHotel.name}`,
+        { changes: dto },
+      );
+      return updatedHotel;
     });
   }
 
@@ -163,6 +192,14 @@ export class HotelsService {
       where: { id: hotelId },
       data: { deletedAt: new Date(), status: HotelStatus.INACTIVE },
     });
+
+    // Log hotel deletion
+    await this.loggingService.logHotelEvent(
+      'hotel_deleted',
+      hotelId,
+      userId,
+      `Hotel soft deleted: ${hotel.name}`,
+    );
 
     return { success: true };
   }
