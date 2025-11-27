@@ -21,6 +21,19 @@ services:
     ports: ['9000:9000', '9001:9001']
     volumes: [minio:/data]
 
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
+    volumes:
+      - n8n_data:/home/node/.n8n
+
   ngrok:
     image: ngrok/ngrok:latest
     restart: unless-stopped
@@ -35,3 +48,4 @@ services:
 volumes:
   pgdata:
   minio:
+  n8n_data:

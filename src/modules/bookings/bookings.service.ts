@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { RedisService } from '../redis/redis.service';
-import { SepayService } from '../payment/payment.service';
+import { PaymentService } from '../payment/payment.service';
 import { MailerService } from '../mailer/mailer.service';
 import {
   CreateBookingDto,
@@ -28,7 +28,7 @@ export class BookingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly sepay: SepayService,
+    private readonly paymentService: PaymentService,
     private readonly mailer: MailerService,
   ) {}
 
@@ -170,7 +170,7 @@ export class BookingsService {
       let paymentIntentId = '';
 
       try {
-        const paymentIntent = await this.sepay.createPaymentIntent(
+        const paymentIntent = await this.paymentService.createPaymentIntent(
           booking.id,
           totalPrice,
           `Booking ${booking.id} - ${room.hotel.name} - ${room.name}`,
@@ -228,7 +228,7 @@ export class BookingsService {
     }
 
     // Verify payment with SEPAY
-    const paymentVerification = await this.sepay.verifyPayment(
+    const paymentVerification = await this.paymentService.verifyPayment(
       booking.paymentIntentId as string,
     );
 
@@ -617,7 +617,7 @@ export class BookingsService {
       booking.transactionId
     ) {
       try {
-        const refund = await this.sepay.processRefund(
+        const refund = await this.paymentService.processRefund(
           booking.transactionId,
           booking.totalPrice,
           dto.cancellationReason,

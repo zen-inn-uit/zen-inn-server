@@ -156,7 +156,7 @@ export class BookingsController {
 
       // Verify webhook signature
       if (signature) {
-        const isValid = this.sepayService.verifyWebhookSignature(
+        const isValid = this.paymentService.verifyWebhookSignature(
           JSON.stringify(rawBody),
           signature,
         );
@@ -168,7 +168,7 @@ export class BookingsController {
       }
 
       // Parse webhook payload
-      const payload = this.sepayService.parseWebhookPayload(rawBody);
+      const payload = this.paymentService.parseWebhookPayload(rawBody);
 
       this.logger.log(
         `Received webhook for payment: ${payload.paymentIntentId}`,

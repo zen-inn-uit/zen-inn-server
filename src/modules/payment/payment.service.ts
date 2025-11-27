@@ -17,8 +17,8 @@ export interface PaymentVerification {
 }
 
 @Injectable()
-export class SepayService {
-  private readonly logger = new Logger(SepayService.name);
+export class PaymentService {
+  private readonly logger = new Logger(PaymentService.name);
   private readonly client: AxiosInstance;
   private readonly apiKey: string;
   private readonly apiUrl: string;
