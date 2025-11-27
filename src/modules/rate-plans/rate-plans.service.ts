@@ -6,12 +6,16 @@ import {
 } from '@nestjs/common';
 import { RatePlan } from '@prisma/client';
 import { PrismaService } from '../../prisma.service';
+import { LoggingService } from '../logging/logging.service';
 import { CreateRatePlanDto, UpdateRatePlanDto } from './dto';
 import { RatePlanMapper } from './mappers';
 
 @Injectable()
 export class RatePlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly loggingService: LoggingService,
+  ) {}
 
   /**
    * Tạo rate plan mới cho phòng (I-02)
@@ -54,7 +58,7 @@ export class RatePlansService {
       }
 
       // Create rate plan
-      return await this.prisma.ratePlan.create({
+      const ratePlan = await this.prisma.ratePlan.create({
         data: {
           roomId,
           name: dto.name,
@@ -65,7 +69,7 @@ export class RatePlansService {
           maxLos: dto.maxLos,
           validFrom,
           validUntil,
-          cancellationPolicy: dto.cancellationPolicy,
+          // cancellationPolicy is now a relation, use assignCancellationPolicy() to set it
           refundablePercent: dto.refundablePercent ?? 100,
           depositRequired: dto.depositRequired ?? false,
           depositPercent: dto.depositPercent ?? 0,
@@ -81,6 +85,20 @@ export class RatePlansService {
           active: dto.active ?? true,
         },
       });
+
+      // Log rate plan creation
+      await this.loggingService.log({
+        eventType: 'rate_plan_created',
+        eventCategory: 'rate_plan' as any,
+        severity: 'info' as any,
+        message: `Rate plan created: ${dto.name} for room ${roomId}`,
+        userId,
+        resourceId: ratePlan.id,
+        resourceType: 'rate_plan',
+        metadata: { ratePlanName: dto.name, roomId, basePrice: dto.basePrice },
+      });
+
+      return ratePlan;
     } catch (error) {
       if (
         error instanceof ForbiddenException ||
@@ -239,10 +257,24 @@ export class RatePlansService {
       // Map DTO to update data using mapper
       const updateData = RatePlanMapper.mapUpdateDtoToData(dto);
 
-      return await this.prisma.ratePlan.update({
+      const updatedPlan = await this.prisma.ratePlan.update({
         where: { id: ratePlanId },
         data: updateData,
       });
+
+      // Log rate plan update
+      await this.loggingService.log({
+        eventType: 'rate_plan_updated',
+        eventCategory: 'rate_plan' as any,
+        severity: 'info' as any,
+        message: `Rate plan updated: ${ratePlan.name}`,
+        userId,
+        resourceId: ratePlanId,
+        resourceType: 'rate_plan',
+        metadata: { changes: dto },
+      });
+
+      return updatedPlan;
     } catch (error) {
       if (
         error instanceof ForbiddenException ||
@@ -289,8 +321,23 @@ export class RatePlansService {
         throw new NotFoundException('Rate plan không tồn tại');
       }
 
-      await this.prisma.ratePlan.delete({ where: { id: ratePlanId } });
-      return { success: true, message: 'Xóa rate plan thành công' };
+      await this.prisma.ratePlan.update({
+        where: { id: ratePlanId },
+        data: { active: false },
+      });
+
+      // Log rate plan deletion
+      await this.loggingService.log({
+        eventType: 'rate_plan_deleted',
+        eventCategory: 'rate_plan' as any,
+        severity: 'info' as any,
+        message: `Rate plan deleted: ${ratePlan.name}`,
+        userId,
+        resourceId: ratePlanId,
+        resourceType: 'rate_plan',
+      });
+
+      return { success: true, message: 'Rate plan deactivated successfully' };
     } catch (error) {
       if (
         error instanceof ForbiddenException ||
@@ -336,6 +383,87 @@ export class RatePlansService {
     } catch (error) {
       throw new Error(
         `Lỗi khi lấy active rate plans: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Gán chính sách hủy cho rate plan (I-04)
+   */
+  async assignCancellationPolicy(
+    userId: string,
+    hotelId: string,
+    ratePlanId: string,
+    cancellationPolicyId: string | null,
+  ): Promise<RatePlan> {
+    try {
+      // Verify hotel belongs to user
+      const hotel = await this.prisma.hotel.findFirst({
+        where: { id: hotelId, partner: { userId } },
+      });
+
+      if (!hotel) {
+        throw new ForbiddenException(
+          'Bạn không có quyền truy cập khách sạn này',
+        );
+      }
+
+      // Get rate plan and verify it belongs to hotel
+      const ratePlan = await this.prisma.ratePlan.findFirst({
+        where: {
+          id: ratePlanId,
+          room: { hotelId },
+        },
+      });
+
+      if (!ratePlan) {
+        throw new NotFoundException('Rate plan không tồn tại');
+      }
+
+      // If cancellationPolicyId is provided, verify it exists and belongs to partner
+      if (cancellationPolicyId) {
+        const partner = await this.prisma.partner.findUnique({
+          where: { userId },
+        });
+
+        if (!partner) {
+          throw new ForbiddenException('User is not a partner');
+        }
+
+        const policy = await this.prisma.cancellationPolicy.findFirst({
+          where: {
+            id: cancellationPolicyId,
+            partnerId: partner.id,
+            active: true,
+          },
+        });
+
+        if (!policy) {
+          throw new NotFoundException(
+            'Cancellation policy not found or inactive',
+          );
+        }
+      }
+
+      // Update rate plan with cancellation policy
+      return await this.prisma.ratePlan.update({
+        where: { id: ratePlanId },
+        data: {
+          cancellationPolicyId,
+        },
+        include: {
+          cancellationPolicy: true,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      throw new Error(
+        `Lỗi khi gán chính sách hủy: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }

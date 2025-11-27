@@ -147,4 +147,30 @@ export class RatePlansController {
     const userId = req.user.sub;
     return this.ratePlansService.remove(userId, hotelId, ratePlanId);
   }
+
+  @Patch(':ratePlanId/cancellation-policy')
+  @Roles(Role.PARTNER)
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Assign cancellation policy to rate plan (I-04: Gán chính sách hủy cho gói giá)',
+  })
+  @ApiParam({ name: 'hotelId', description: 'Hotel ID' })
+  @ApiParam({ name: 'roomId', description: 'Room ID' })
+  @ApiParam({ name: 'ratePlanId', description: 'Rate Plan ID' })
+  @ApiOkResponse()
+  async assignCancellationPolicy(
+    @Request() req: AuthRequest,
+    @Param('hotelId') hotelId: string,
+    @Param('ratePlanId') ratePlanId: string,
+    @Body() body: { cancellationPolicyId: string | null },
+  ): Promise<RatePlan> {
+    const userId = req.user.sub;
+    return this.ratePlansService.assignCancellationPolicy(
+      userId,
+      hotelId,
+      ratePlanId,
+      body.cancellationPolicyId,
+    );
+  }
 }
