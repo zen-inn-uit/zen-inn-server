@@ -116,7 +116,8 @@ model Partner {
   hotels    Hotel[]
   kycStatus KycStatus @default(PENDING)
 
-  kycDocuments KycDocument[]
+  kycDocuments         KycDocument[]
+  cancellationPolicies CancellationPolicy[]
 }
 
 model Hotel {
@@ -243,8 +244,11 @@ model RatePlan {
   validFrom               DateTime
   validUntil              DateTime
   
-  // Chính sách
-  cancellationPolicy      String?   // "Free before 48h", "No refund", "Non-refundable"
+  // Chính sách hủy - reference to CancellationPolicy
+  cancellationPolicyId    String?
+  cancellationPolicy      CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
+  
+  // Legacy fields (deprecated, use cancellationPolicy instead)
   refundablePercent       Int @default(100) // % hoàn tiền (0-100)
   depositRequired         Boolean @default(false) // yêu cầu đặt cọc
   depositPercent          Int @default(0) // % đặt cọc (0-100)
@@ -360,4 +364,58 @@ model KycDocument {
   createdAt DateTime @default(now())
 
   @@index([partnerId, kind])
+}
+
+model CancellationPolicy {
+  id                    String    @id @default(cuid())
+  partnerId             String
+  partner               Partner   @relation(fields: [partnerId], references: [id])
+  
+  name                  String    // "Flexible", "Moderate", "Strict"
+  description           String?
+  
+  // Cancellation windows
+  freeCancellationHours Int       // Hours before check-in for free cancellation
+  refundablePercent     Int       // % refund if cancelled after free window (0-100)
+  noShowRefundPercent   Int @default(0) // % refund for no-show
+  
+  // Modification policy
+  modificationAllowed   Boolean @default(true)
+  modificationFeePercent Int @default(0) // % of booking total
+  
+  active                Boolean @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  ratePlans             RatePlan[]
+  
+  @@index([partnerId])
+}
+
+model SystemLog {
+  id                String    @id @default(cuid())
+  
+  // Event information
+  eventType         String    // "booking_created", "payment_completed", etc.
+  eventCategory     String    // "booking", "payment", "auth", "kyc"
+  severity          String    // "info", "warning", "error"
+  
+  // Context
+  userId            String?
+  resourceId        String?   // booking ID, hotel ID, etc.
+  resourceType      String?   // "booking", "hotel", "user"
+  
+  // Details
+  message           String
+  metadata          Json?     // Additional structured data
+  
+  // Request context
+  ipAddress         String?
+  userAgent         String?
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([eventType, createdAt])
+  @@index([userId, createdAt])
+  @@index([eventCategory, createdAt])
 }
