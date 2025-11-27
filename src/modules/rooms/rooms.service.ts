@@ -4,12 +4,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { LoggingService } from '../logging/logging.service';
 import { CreateRoomDto, UpdateRoomDto } from './dto';
 import { KycStatus } from '@prisma/client';
 
 @Injectable()
 export class RoomsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly loggingService: LoggingService,
+  ) {}
 
   private async getApprovedPartnerForUser(userId: string) {
     const partner = await this.prisma.partner.findUnique({
@@ -77,7 +81,7 @@ export class RoomsService {
       }
     }
 
-    return this.prisma.room.create({
+    const room = await this.prisma.room.create({
       data: {
         hotelId,
         name: dto.name,
@@ -120,6 +124,25 @@ export class RoomsService {
         ratePlans: true,
       },
     });
+
+    // Log room creation
+    await this.loggingService.log({
+      eventType: 'room_created',
+      eventCategory: 'room' as any,
+      severity: 'info' as any,
+      message: `Room created: ${dto.name} in hotel ${hotelId}`,
+      userId,
+      resourceId: room.id,
+      resourceType: 'room',
+      metadata: {
+        roomName: dto.name,
+        hotelId,
+        roomType: dto.roomType,
+        price: dto.price,
+      },
+    });
+
+    return room;
   }
 
   async findAllForUser(userId: string, hotelId: string) {
@@ -263,7 +286,7 @@ export class RoomsService {
       };
     }
 
-    return this.prisma.room.update({
+    const updatedRoom = await this.prisma.room.update({
       where: { id: roomId },
       data: updateData,
       include: {
@@ -278,6 +301,20 @@ export class RoomsService {
         ratePlans: true,
       },
     });
+
+    // Log room update
+    await this.loggingService.log({
+      eventType: 'room_updated',
+      eventCategory: 'room' as any,
+      severity: 'info' as any,
+      message: `Room updated: ${updatedRoom.name}`,
+      userId,
+      resourceId: roomId,
+      resourceType: 'room',
+      metadata: { changes: dto },
+    });
+
+    return updatedRoom;
   }
 
   async removeForUser(userId: string, hotelId: string, roomId: string) {
@@ -296,6 +333,17 @@ export class RoomsService {
 
     await this.prisma.room.delete({
       where: { id: roomId },
+    });
+
+    // Log room deletion
+    await this.loggingService.log({
+      eventType: 'room_deleted',
+      eventCategory: 'room' as any,
+      severity: 'info' as any,
+      message: `Room deleted: ${room.name}`,
+      userId,
+      resourceId: roomId,
+      resourceType: 'room',
     });
 
     return { success: true };

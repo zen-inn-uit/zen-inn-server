@@ -4,13 +4,17 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
+import { LoggingService } from '../logging/logging.service';
 import { KycStatus, Role } from '@prisma/client';
 import { UpsertPartnerDto } from './dto/upsert-partner.dto';
 import { CreateKycDocDto } from './dto/create-kyc-doc.dto';
 
 @Injectable()
 export class PartnersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private loggingService: LoggingService,
+  ) {}
 
   // Lấy hoặc tạo Partner cho user hiện tại
   async getOrCreateMyPartner(userId: string, dto?: UpsertPartnerDto) {
@@ -107,6 +111,18 @@ export class PartnersService {
       });
     }
 
+    // Log KYC approval
+    await this.loggingService.logKycEvent(
+      'kyc_approved',
+      partnerId,
+      adminId,
+      `KYC approved for partner ${partner.user.email}`,
+      {
+        partnerEmail: partner.user.email,
+        company: partner.company,
+      },
+    );
+
     return partner;
   }
 
@@ -120,6 +136,14 @@ export class PartnersService {
       where: { id: partnerId },
       data: { kycStatus: KycStatus.REJECTED },
     });
+
+    // Log KYC rejection
+    await this.loggingService.logKycEvent(
+      'kyc_rejected',
+      partnerId,
+      adminId,
+      `KYC rejected for partner`,
+    );
 
     return partner;
   }

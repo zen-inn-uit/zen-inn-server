@@ -75,8 +75,10 @@ export class AuthController {
   @Post('login')
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({ status: 200, description: 'Tokens issued' })
-  async login(@Body() dto: LoginDto) {
-    return this.auth.login(dto.email, dto.password);
+  async login(@Body() dto: LoginDto, @Req() req: Request) {
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    return this.auth.login(dto.email, dto.password, ipAddress, userAgent);
   }
 
   // ======= OTP Sign-in (optional)

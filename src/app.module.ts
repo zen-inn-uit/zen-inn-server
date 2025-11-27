@@ -17,10 +17,13 @@ import { RatePlansModule } from './modules/rate-plans/rate-plans.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
+import { CancellationPoliciesModule } from './modules/cancellation-policies/cancellation-policies.module';
+import { LoggingModule } from './modules/logging/logging.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    LoggingModule,
     RedisModule,
     UsersModule,
     MailerModule,
@@ -34,6 +37,7 @@ import { BookingsModule } from './modules/bookings/bookings.module';
     RatePlansModule,
     PaymentModule,
     BookingsModule,
+    CancellationPoliciesModule,
   ],
   controllers: [HealthController],
   providers: [

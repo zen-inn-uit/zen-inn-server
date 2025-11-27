@@ -13,6 +13,7 @@ import { PrismaService } from '../../prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { PaymentService } from '../payment/payment.service';
 import { MailerService } from '../mailer/mailer.service';
+import { LoggingService } from '../logging/logging.service';
 import {
   CreateBookingDto,
   UpdateBookingDto,
@@ -30,6 +31,7 @@ export class BookingsService {
     private readonly redis: RedisService,
     private readonly paymentService: PaymentService,
     private readonly mailer: MailerService,
+    private readonly loggingService: LoggingService,
   ) {}
 
   /**
@@ -190,6 +192,22 @@ export class BookingsService {
         // Continue without payment URL for now
       }
 
+      // Log booking creation
+      await this.loggingService.logBookingEvent(
+        'booking_created',
+        booking.id,
+        userId,
+        `Booking created for room ${room.name} at ${room.hotel.name}`,
+        {
+          roomId: dto.roomId,
+          hotelId: room.hotel.id,
+          checkIn: checkIn.toISOString(),
+          checkOut: checkOut.toISOString(),
+          totalPrice,
+          nightCount,
+        },
+      );
+
       return {
         data: {
           ...booking,
@@ -281,6 +299,18 @@ export class BookingsService {
     } catch (error) {
       this.logger.error('Failed to send confirmation emails:', error);
     }
+
+    // Log booking confirmation
+    await this.loggingService.logBookingEvent(
+      'booking_confirmed',
+      bookingId,
+      booking.userId,
+      `Booking confirmed for ${booking.room.name} at ${booking.room.hotel.name}`,
+      {
+        transactionId,
+        totalPrice: booking.totalPrice,
+      },
+    );
 
     return updatedBooking;
   }
@@ -544,6 +574,17 @@ export class BookingsService {
         this.logger.error('Failed to send modification email:', error);
       }
 
+      // Log booking modification
+      await this.loggingService.logBookingEvent(
+        'booking_modified',
+        bookingId,
+        userId,
+        `Booking modified for ${updatedBooking.room.name}`,
+        {
+          changes: dto,
+        },
+      );
+
       return {
         data: updatedBooking,
         message: 'Booking updated successfully',
@@ -650,6 +691,18 @@ export class BookingsService {
     } catch (error) {
       this.logger.error('Failed to send cancellation email:', error);
     }
+
+    // Log booking cancellation
+    await this.loggingService.logBookingEvent(
+      'booking_cancelled',
+      bookingId,
+      userId,
+      `Booking cancelled for ${updatedBooking.room.name} at ${updatedBooking.room.hotel.name}`,
+      {
+        cancellationReason: dto.cancellationReason,
+        refundAmount,
+      },
+    );
 
     return {
       data: updatedBooking,
