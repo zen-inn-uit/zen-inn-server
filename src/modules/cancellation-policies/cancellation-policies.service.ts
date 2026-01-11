@@ -37,6 +37,7 @@ export class CancellationPoliciesService {
         noShowRefundPercent: dto.noShowRefundPercent ?? 0,
         modificationAllowed: dto.modificationAllowed ?? true,
         modificationFeePercent: dto.modificationFeePercent ?? 0,
+        hotelId: dto.hotelId,
       },
     });
 
@@ -66,6 +67,22 @@ export class CancellationPoliciesService {
 
     return this.prisma.cancellationPolicy.findMany({
       where: { partnerId: partner.id },
+      include: {
+        ratePlans: {
+          select: {
+            rooms: {
+              select: {
+                hotelId: true,
+              },
+            },
+          },
+        },
+        rooms: {
+          select: {
+            hotelId: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

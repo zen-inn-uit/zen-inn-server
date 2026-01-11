@@ -69,4 +69,12 @@ export class CreateCancellationPolicyDto {
   @Max(100)
   @IsOptional()
   modificationFeePercent?: number;
+
+  @ApiPropertyOptional({
+    example: 'cl...',
+    description: 'ID của khách sạn nếu muốn giới hạn cho khách sạn đó',
+  })
+  @IsOptional()
+  @IsString()
+  hotelId?: string;
 }
