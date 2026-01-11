@@ -109,9 +109,9 @@ export class RoomsService {
             amenityId,
           })),
         },
-        ratePlans: dto.ratePlanId ? {
-          connect: { id: dto.ratePlanId }
-        } : undefined,
+        ratePlans: dto.ratePlanId 
+          ? { connect: { id: dto.ratePlanId } }
+          : undefined,
       },
       include: {
         images: true,
@@ -142,13 +142,47 @@ export class RoomsService {
       },
     });
 
-    return room;
+    // Transform images to array of URLs
+    return {
+      ...room,
+      images: room.images.map(img => img.url),
+    };
+  }
+
+  async findAllForPartner(userId: string) {
+    const rooms = await this.prisma.room.findMany({
+      where: {
+        hotel: {
+          partner: {
+            userId,
+          },
+        },
+      },
+      include: {
+        hotel: true,
+        images: true,
+        beds: true,
+        amenities: {
+          include: {
+            amenity: true,
+          },
+        },
+        deals: true,
+        ratePlans: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return rooms.map(room => ({
+      ...room,
+      images: room.images.map(img => img.url),
+    }));
   }
 
   async findAllForUser(userId: string, hotelId: string) {
     await this.verifyHotelOwnership(userId, hotelId);
 
-    return this.prisma.room.findMany({
+    const rooms = await this.prisma.room.findMany({
       where: {
         hotelId,
       },
@@ -165,6 +199,12 @@ export class RoomsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Transform images to array of URLs
+    return rooms.map(room => ({
+      ...room,
+      images: room.images.map(img => img.url),
+    }));
   }
 
   async findOneForUser(userId: string, hotelId: string, roomId: string) {
@@ -192,7 +232,11 @@ export class RoomsService {
       throw new NotFoundException('Không tìm thấy phòng.');
     }
 
-    return room;
+    // Transform images to array of URLs
+    return {
+      ...room,
+      images: room.images.map(img => img.url),
+    };
   }
 
   async updateForUser(
@@ -315,7 +359,45 @@ export class RoomsService {
       metadata: { changes: dto },
     });
 
-    return updatedRoom;
+    // Transform images to array of URLs
+    return {
+      ...updatedRoom,
+      images: updatedRoom.images.map(img => img.url),
+    };
+  }
+
+  async findOneByIdForPartner(userId: string, roomId: string) {
+    const partner = await this.getApprovedPartnerForUser(userId);
+
+    const room = await this.prisma.room.findFirst({
+      where: {
+        id: roomId,
+        hotel: {
+          partnerId: partner.id,
+        },
+      },
+      include: {
+        hotel: true,
+        images: true,
+        beds: true,
+        amenities: {
+          include: {
+            amenity: true,
+          },
+        },
+        deals: true,
+        ratePlans: true,
+      },
+    });
+
+    if (!room) {
+      throw new NotFoundException('Không tìm thấy phòng.');
+    }
+
+    return {
+      ...room,
+      images: room.images.map(img => img.url),
+    };
   }
 
   async removeForUser(userId: string, hotelId: string, roomId: string) {
