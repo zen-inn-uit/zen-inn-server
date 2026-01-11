@@ -41,7 +41,6 @@ export class InventoryService {
         roomType: true,
         availableCount: true,
         totalCount: true,
-        price: true,
         capacity: true,
       },
     });
@@ -111,7 +110,6 @@ export class InventoryService {
         roomType: true,
         availableCount: true,
         totalCount: true,
-        price: true,
         capacity: true,
       },
     });

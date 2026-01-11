@@ -123,18 +123,32 @@ export class BookingsService {
         },
       });
 
-      if (conflictingBookings.length > 0) {
-        throw new ConflictException(
-          'Room is not available for the selected dates',
+      // Get rate plan for price calculation
+      const ratePlan = dto.ratePlanId
+        ? await this.prisma.ratePlan.findUnique({
+            where: { id: dto.ratePlanId },
+          })
+        : await this.prisma.ratePlan.findFirst({
+            where: {
+              rooms: { some: { id: dto.roomId } },
+              active: true,
+            },
+            orderBy: { basePrice: 'asc' },
+          });
+
+      if (!ratePlan) {
+        throw new BadRequestException(
+          'No active rate plan found for this room',
         );
       }
 
-      const totalPrice = room.price * nightCount;
+      const totalPrice = ratePlan.basePrice * nightCount;
 
       const booking = await this.prisma.booking.create({
         data: {
           userId,
           roomId: dto.roomId,
+          ratePlanId: ratePlan.id,
           checkIn,
           checkOut,
           nightCount,
@@ -543,7 +557,19 @@ export class BookingsService {
             (1000 * 60 * 60 * 24),
         );
         updateData.nightCount = nightCount;
-        updateData.totalPrice = booking.room.price * nightCount;
+        
+        // Get price from rate plan
+        const ratePlan = await this.prisma.ratePlan.findFirst({
+          where: {
+            id: (booking as any).ratePlanId || undefined,
+            rooms: { some: { id: booking.roomId } },
+          },
+          orderBy: { basePrice: 'asc' },
+        });
+
+        if (ratePlan) {
+          updateData.totalPrice = ratePlan.basePrice * nightCount;
+        }
       }
 
       const updatedBooking = await this.prisma.booking.update({

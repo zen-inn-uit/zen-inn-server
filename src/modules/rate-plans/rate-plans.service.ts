@@ -60,7 +60,8 @@ export class RatePlansService {
       // Create rate plan
       const ratePlan = await this.prisma.ratePlan.create({
         data: {
-          roomId,
+          partnerId: hotel.partnerId,
+          rooms: { connect: { id: roomId } },
           name: dto.name,
           description: dto.description,
           rateCode: dto.rateCode,
@@ -143,7 +144,9 @@ export class RatePlansService {
       }
 
       return await this.prisma.ratePlan.findMany({
-        where: { roomId },
+        where: {
+          rooms: { some: { id: roomId } },
+        },
         orderBy: { validFrom: 'desc' },
       });
     } catch (error) {
@@ -183,7 +186,7 @@ export class RatePlansService {
       const ratePlan = await this.prisma.ratePlan.findFirst({
         where: {
           id: ratePlanId,
-          room: { hotelId },
+          rooms: { some: { hotelId } },
         },
       });
 
@@ -230,7 +233,7 @@ export class RatePlansService {
       const ratePlan = await this.prisma.ratePlan.findFirst({
         where: {
           id: ratePlanId,
-          room: { hotelId },
+          rooms: { some: { hotelId } },
         },
       });
 
@@ -313,7 +316,7 @@ export class RatePlansService {
       const ratePlan = await this.prisma.ratePlan.findFirst({
         where: {
           id: ratePlanId,
-          room: { hotelId },
+          rooms: { some: { hotelId } },
         },
       });
 
@@ -358,7 +361,7 @@ export class RatePlansService {
     try {
       return await this.prisma.ratePlan.findMany({
         where: {
-          roomId,
+          rooms: { some: { id: roomId } },
           active: true,
           validFrom: { lte: new Date() },
           validUntil: { gte: new Date() },
@@ -412,7 +415,7 @@ export class RatePlansService {
       const ratePlan = await this.prisma.ratePlan.findFirst({
         where: {
           id: ratePlanId,
-          room: { hotelId },
+          rooms: { some: { hotelId } },
         },
       });
 

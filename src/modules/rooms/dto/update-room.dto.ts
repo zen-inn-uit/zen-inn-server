@@ -77,28 +77,6 @@ export class UpdateRoomDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({
-    example: 5000000,
-    description: 'Giá mỗi đêm (tính theo cent)',
-  })
-  @IsOptional()
-  @IsInt()
-  @IsPositive()
-  price?: number;
-
-  @ApiPropertyOptional({ example: 6000000 })
-  @IsOptional()
-  @IsInt()
-  @IsPositive()
-  originalPrice?: number;
-
-  @ApiPropertyOptional({ example: 17 })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  discountPercent?: number;
-
   @ApiPropertyOptional({ example: 2 })
   @IsOptional()
   @IsInt()
@@ -160,4 +138,12 @@ export class UpdateRoomDto {
   @ValidateNested({ each: true })
   @Type(() => UpdateAmenityDto)
   amenities?: UpdateAmenityDto[];
+
+  @IsOptional()
+  @IsString()
+  cancellationPolicyId?: string;
+
+  @IsOptional()
+  @IsString()
+  ratePlanId?: string;
 }

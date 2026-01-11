@@ -86,7 +86,11 @@ export class CancellationPoliciesService {
           select: {
             id: true,
             name: true,
-            roomId: true,
+            rooms: {
+              select: {
+                id: true,
+              },
+            },
           },
         },
       },

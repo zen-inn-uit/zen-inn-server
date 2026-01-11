@@ -15,6 +15,10 @@ export class JwtRefreshStrategy extends PassportStrategy(
     });
   }
   validate(payload: any) {
-    return payload;
+    // Return payload with sub, sid for backward compatibility
+    return {
+      sub: payload.sub,
+      sid: payload.sid,
+    };
   }
 }

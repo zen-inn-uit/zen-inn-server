@@ -58,7 +58,23 @@ export class AuthService {
   private async issueTokens(userId: string, role: Role) {
     const { sessionId, refreshToken } = await this.createSession(userId);
     const accessToken = this.signAccess(userId, role, sessionId);
-    return { accessToken, refreshToken };
+    
+    // Fetch user info to include in response
+    const user = await this.prisma.user.findUnique({ 
+      where: { id: userId },
+      select: { id: true, email: true, role: true, status: true }
+    });
+    
+    return { 
+      accessToken, 
+      refreshToken,
+      user: {
+        id: user!.id,
+        email: user!.email,
+        role: user!.role,
+        status: user!.status,
+      }
+    };
   }
 
   private generateOtp(): string {

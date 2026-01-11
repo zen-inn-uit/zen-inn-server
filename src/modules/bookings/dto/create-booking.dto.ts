@@ -21,6 +21,11 @@ export class CreateBookingDto {
   @IsNotEmpty()
   roomId: string;
 
+  @ApiProperty({ description: 'Rate Plan ID', required: false })
+  @IsString()
+  @IsOptional()
+  ratePlanId?: string;
+
   @ApiProperty({
     description: 'Check-in date (ISO 8601)',
     example: '2024-12-25',

@@ -118,6 +118,7 @@ model Partner {
 
   kycDocuments         KycDocument[]
   cancellationPolicies CancellationPolicy[]
+  ratePlans            RatePlan[]
 }
 
 model Hotel {
@@ -160,9 +161,6 @@ model Room {
   name            String    // "Deluxe Double Room"
   roomType        String    // loại phòng
   description     String?
-  price           Int       // giá mỗi đêm (tính theo cent)
-  originalPrice   Int?      // giá gốc nếu có discount
-  discountPercent Int?      // phần trăm giảm giá (0-100)
   
   capacity        Int       @default(2)    // số người
   area            Float?    // diện tích (feet² hoặc m²)
@@ -176,9 +174,13 @@ model Room {
   ratePlans       RatePlan[]
   deals           Deal[]
   
+  bookings        Booking[]
+  
+  cancellationPolicyId String?
+  cancellationPolicy   CancellationPolicy? @relation("RoomToPolicy", fields: [cancellationPolicyId], references: [id])
+  
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  bookings        Booking[]
 }
 
 model Bed {
@@ -227,8 +229,10 @@ model RoomAmenity {
 
 model RatePlan {
   id                      String    @id @default(cuid())
-  roomId                  String
-  room                    Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  partnerId               String
+  partner                 Partner   @relation(fields: [partnerId], references: [id])
+  
+  rooms                   Room[]
   
   // Thông tin cơ bản
   name                    String    // "BAR", "Non-refundable Rate", "Breakfast Included"
@@ -273,6 +277,8 @@ model RatePlan {
   active                  Boolean @default(true)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
+
+  bookings                Booking[]
 }
 
 model Deal {
@@ -294,6 +300,8 @@ model Booking {
   user      User          @relation(fields: [userId], references: [id])
   roomId    String
   room      Room          @relation(fields: [roomId], references: [id])
+  ratePlanId String?
+  ratePlan  RatePlan?     @relation(fields: [ratePlanId], references: [id])
   
   // Date range
   checkIn   DateTime
@@ -388,6 +396,7 @@ model CancellationPolicy {
   updatedAt             DateTime @updatedAt
   
   ratePlans             RatePlan[]
+  rooms                 Room[]    @relation("RoomToPolicy")
   
   @@index([partnerId])
 }

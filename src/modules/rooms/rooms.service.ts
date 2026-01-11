@@ -87,13 +87,11 @@ export class RoomsService {
         name: dto.name,
         roomType: dto.roomType,
         description: dto.description,
-        price: dto.price,
-        originalPrice: dto.originalPrice,
-        discountPercent: dto.discountPercent,
         capacity: dto.capacity,
         area: dto.area,
         availableCount: dto.availableCount,
         totalCount: dto.totalCount,
+        cancellationPolicyId: dto.cancellationPolicyId,
         images: {
           create: (dto.images ?? []).map((url, index) => ({
             url,
@@ -111,6 +109,9 @@ export class RoomsService {
             amenityId,
           })),
         },
+        ratePlans: dto.ratePlanId ? {
+          connect: { id: dto.ratePlanId }
+        } : undefined,
       },
       include: {
         images: true,
@@ -138,7 +139,6 @@ export class RoomsService {
         roomName: dto.name,
         hotelId,
         roomType: dto.roomType,
-        price: dto.price,
       },
     });
 
@@ -249,16 +249,17 @@ export class RoomsService {
     if (dto.name !== undefined) updateData.name = dto.name;
     if (dto.roomType !== undefined) updateData.roomType = dto.roomType;
     if (dto.description !== undefined) updateData.description = dto.description;
-    if (dto.price !== undefined) updateData.price = dto.price;
-    if (dto.originalPrice !== undefined)
-      updateData.originalPrice = dto.originalPrice;
-    if (dto.discountPercent !== undefined)
-      updateData.discountPercent = dto.discountPercent;
     if (dto.capacity !== undefined) updateData.capacity = dto.capacity;
     if (dto.area !== undefined) updateData.area = dto.area;
     if (dto.availableCount !== undefined)
       updateData.availableCount = dto.availableCount;
     if (dto.totalCount !== undefined) updateData.totalCount = dto.totalCount;
+    if (dto.cancellationPolicyId !== undefined) updateData.cancellationPolicyId = dto.cancellationPolicyId;
+    if (dto.ratePlanId !== undefined) {
+      updateData.ratePlans = {
+        set: dto.ratePlanId ? [{ id: dto.ratePlanId }] : [],
+      };
+    }
 
     if (dto.images !== undefined) {
       updateData.images = {

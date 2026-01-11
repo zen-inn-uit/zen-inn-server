@@ -12,6 +12,11 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
   validate(payload: any) {
-    return payload;
+    // Return payload with sub, role, sid for backward compatibility
+    return {
+      sub: payload.sub,
+      role: payload.role,
+      sid: payload.sid,
+    };
   }
 }
