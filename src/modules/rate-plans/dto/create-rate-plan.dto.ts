@@ -76,13 +76,12 @@ export class CreateRatePlanDto {
   validUntil: string;
 
   @ApiPropertyOptional({
-    example: 'Free before 48h',
-    description:
-      'Chính sách hủy (e.g., "Free before 48h", "No refund", "Non-refundable")',
+    example: 'cl...',
+    description: 'ID của chính sách hủy',
   })
   @IsOptional()
   @IsString()
-  cancellationPolicy?: string;
+  cancellationPolicyId?: string;
 
   @ApiPropertyOptional({
     example: 100,
@@ -204,4 +203,12 @@ export class CreateRatePlanDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({
+    example: 'cl...',
+    description: 'ID của khách sạn nếu muốn giới hạn cho khách sạn đó',
+  })
+  @IsOptional()
+  @IsString()
+  hotelId?: string;
 }

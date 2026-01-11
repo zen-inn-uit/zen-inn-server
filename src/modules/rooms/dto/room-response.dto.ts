@@ -139,6 +139,9 @@ export class RoomResponseDto {
   @ApiProperty({ type: [RoomBookingStyleDto] })
   bookingStyles: RoomBookingStyleDto[];
 
+  @ApiProperty({ example: 'cljxxxxxxxx' })
+  cancellationPolicyId?: string;
+
   @ApiProperty({ example: '2025-11-17T10:00:00Z' })
   createdAt: string;
 

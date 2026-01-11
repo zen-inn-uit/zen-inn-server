@@ -18,6 +18,56 @@ export class RatePlansService {
   ) {}
 
   /**
+   * Tạo rate plan chung cho partner (không gắn với phòng cụ thể ngay)
+   */
+  async createStandalone(userId: string, dto: CreateRatePlanDto): Promise<RatePlan> {
+    const partner = await this.prisma.partner.findFirst({
+      where: { userId },
+    });
+
+    if (!partner) {
+      throw new ForbiddenException('User is not a partner');
+    }
+
+    const validFrom = new Date(dto.validFrom);
+    const validUntil = new Date(dto.validUntil);
+
+    if (validFrom >= validUntil) {
+      throw new BadRequestException('Ngày bắt đầu phải nhỏ hơn ngày kết thúc');
+    }
+
+    return this.prisma.ratePlan.create({
+      data: {
+        partnerId: partner.id,
+        name: dto.name,
+        description: dto.description,
+        rateCode: dto.rateCode,
+        basePrice: dto.basePrice,
+        minLos: dto.minLos ?? 1,
+        maxLos: dto.maxLos,
+        validFrom,
+        validUntil,
+        refundablePercent: dto.refundablePercent ?? 100,
+        depositRequired: dto.depositRequired ?? false,
+        depositPercent: dto.depositPercent ?? 0,
+        includesBreakfast: dto.includesBreakfast ?? false,
+        includesDinner: dto.includesDinner ?? false,
+        includesParking: dto.includesParking ?? false,
+        otherInclusions: dto.otherInclusions,
+        minGuestCount: dto.minGuestCount ?? 1,
+        maxGuestCount: dto.maxGuestCount,
+        modificationAllowed: dto.modificationAllowed ?? true,
+        modificationFee: dto.modificationFee ?? 0,
+        rateType: dto.rateType,
+        active: dto.active ?? true,
+        cancellationPolicyId: dto.cancellationPolicyId,
+        hotelId: dto.hotelId,
+      },
+    });
+  }
+
+
+  /**
    * Tạo rate plan mới cho phòng (I-02)
    */
   async create(
@@ -117,6 +167,44 @@ export class RatePlansService {
   /**
    * Lấy danh sách rate plans của phòng
    */
+  /**
+   * Lấy tất cả rate plans của partner
+   */
+  async findAllForPartner(userId: string): Promise<RatePlan[]> {
+    try {
+      const partner = await this.prisma.partner.findUnique({
+        where: { userId },
+      });
+
+      if (!partner) {
+        throw new ForbiddenException('User is not a partner');
+      }
+
+      return await this.prisma.ratePlan.findMany({
+        where: {
+          partnerId: partner.id,
+          active: true,
+        },
+        include: {
+          cancellationPolicy: true,
+          rooms: {
+            select: {
+              hotelId: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw error;
+      }
+      throw new Error(
+        `Lỗi khi lấy danh sách rate plans của partner: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
   async findAll(
     userId: string,
     hotelId: string,

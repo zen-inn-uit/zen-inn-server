@@ -195,4 +195,12 @@ export class UpdateRatePlanDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({
+    example: 'cl...',
+    description: 'ID của khách sạn nếu muốn giới hạn cho khách sạn đó',
+  })
+  @IsOptional()
+  @IsString()
+  hotelId?: string;
 }

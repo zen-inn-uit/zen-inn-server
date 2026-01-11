@@ -40,6 +40,7 @@ export class RatePlanMapper {
       data.modificationFee = dto.modificationFee;
     if (dto.rateType !== undefined) data.rateType = dto.rateType;
     if (dto.active !== undefined) data.active = dto.active;
+    if (dto.hotelId !== undefined) data.hotelId = dto.hotelId;
 
     return data;
   }
