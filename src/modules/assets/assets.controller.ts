@@ -29,10 +29,8 @@ export class AssetsController {
     return this.assets.createPresignedUpload(userId, dto);
   }
 
-  @UseGuards(JwtAccessGuard)
   @Post('upload-image')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Upload a single base64 image to Cloudinary' })
+  @ApiOperation({ summary: 'Upload a single base64 image to Cloudinary (Public)' })
   async uploadBase64Image(@Body() dto: UploadBase64ImageDto) {
     const url = await this.cloudinary.uploadBase64Image(
       dto.image,
@@ -41,10 +39,8 @@ export class AssetsController {
     return { url };
   }
 
-  @UseGuards(JwtAccessGuard)
   @Post('upload-images')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Upload multiple base64 images to Cloudinary' })
+  @ApiOperation({ summary: 'Upload multiple base64 images to Cloudinary (Public)' })
   async uploadBase64Images(@Body() dto: UploadBase64ImagesDto) {
     const urls = await this.cloudinary.uploadMultipleBase64Images(
       dto.images,

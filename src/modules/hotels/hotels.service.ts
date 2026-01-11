@@ -84,13 +84,24 @@ export class HotelsService {
   async findAllForUser(userId: string) {
     const partner = await this.getApprovedPartnerForUser(userId);
 
-    return this.prisma.hotel.findMany({
+    const hotels = await this.prisma.hotel.findMany({
       where: {
         partnerId: partner.id,
         deletedAt: null,
       },
+      include: {
+        images: {
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Transform images to array of URLs
+    return hotels.map(hotel => ({
+      ...hotel,
+      images: hotel.images.map(img => img.url),
+    }));
   }
 
   /**
@@ -105,13 +116,22 @@ export class HotelsService {
         partnerId: partner.id,
         deletedAt: null,
       },
+      include: {
+        images: {
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
     });
 
     if (!hotel) {
       throw new NotFoundException('Không tìm thấy khách sạn.');
     }
 
-    return hotel;
+    // Transform images to array of URLs
+    return {
+      ...hotel,
+      images: hotel.images.map(img => img.url),
+    };
   }
 
   /**
