@@ -30,7 +30,7 @@ import {
 import { JwtAccessGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { Role } from '@prisma/client';
+import { Role, BookingStatus } from '@prisma/client';
 import { Request } from 'express';
 import { PaymentService } from '../payment/payment.service';
 
@@ -139,6 +139,20 @@ export class BookingsController {
   ) {
     const userId = req.user.sub;
     return this.bookingsService.getBookingsForPartner(userId, query);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles(Role.PARTNER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update booking status (Partner only)' })
+  @ApiParam({ name: 'id', description: 'Booking ID' })
+  @ApiResponse({ status: 200, description: 'Booking status updated' })
+  async updateBookingStatus(
+    @Param('id') id: string,
+    @Body('status') status: BookingStatus,
+  ) {
+    return this.bookingsService.updateBookingStatus(id, status);
   }
 
   // ========== Webhook Endpoint ==========

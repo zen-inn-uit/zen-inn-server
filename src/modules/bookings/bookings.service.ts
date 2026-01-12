@@ -823,4 +823,23 @@ export class BookingsService {
       },
     };
   }
+
+  async updateBookingStatus(bookingId: string, status: BookingStatus) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    return this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status },
+      include: {
+        room: true,
+        user: true,
+      },
+    });
+  }
 }
