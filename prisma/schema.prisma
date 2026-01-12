@@ -86,7 +86,23 @@ model Room {
   hotel                Hotel               @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   amenities            RoomAmenity[]
   images               RoomImage[]
+  inventory            RoomInventory[]
   ratePlans            RatePlan[]          @relation("RatePlanToRoom")
+}
+
+model RoomInventory {
+  id          String   @id @default(cuid())
+  roomId      String
+  date        DateTime
+  available   Int      @default(1)
+  price       Int?     // Daily price override
+  isStopSell  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, date])
+  @@index([roomId, date])
 }
 
 model Bed {

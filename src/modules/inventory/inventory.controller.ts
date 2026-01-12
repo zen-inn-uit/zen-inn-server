@@ -7,23 +7,20 @@ import {
   UseGuards,
   Request,
   HttpCode,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
-  ApiParam,
   ApiOkResponse,
-  ApiNotFoundResponse,
-  ApiForbiddenResponse,
-  ApiBadRequestResponse,
 } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { InventoryService } from './inventory.service';
-import { UpdateInventoryDto } from './dto';
+import { BulkUpdateInventoryDto } from './dto/update-inventory.dto';
 
 interface AuthRequest extends Request {
   user: { sub: string; role: Role };
@@ -33,77 +30,35 @@ interface AuthRequest extends Request {
 @ApiBearerAuth()
 @UseGuards(JwtAccessGuard, RolesGuard)
 @Roles(Role.PARTNER)
-@Controller('partners/hotels/:hotelId/rooms/:roomId/inventory')
+@Controller('partners')
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
-  @Get()
+  @Get('hotels/:hotelId/inventory')
   @ApiOperation({
-    summary: 'Lấy thông tin số lượng phòng có sẵn',
+    summary: 'Lấy dữ liệu kho phòng theo dải ngày cho khách sạn',
   })
-  @ApiParam({ name: 'hotelId', description: 'ID của khách sạn' })
-  @ApiParam({ name: 'roomId', description: 'ID của phòng' })
-  @ApiOkResponse({
-    schema: {
-      example: {
-        data: {
-          id: 'room-123',
-          name: 'Deluxe Double Room',
-          roomType: 'Double Room',
-          availableCount: 5,
-          totalCount: 10,
-          price: 50000,
-          capacity: 2,
-        },
-      },
-    },
-  })
-  @ApiForbiddenResponse({ description: 'Không có quyền truy cập khách sạn' })
-  @ApiNotFoundResponse({ description: 'Phòng không tồn tại' })
-  async getInventory(
+  async getHotelInventory(
     @Request() req: AuthRequest,
     @Param('hotelId') hotelId: string,
-    @Param('roomId') roomId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
   ) {
     const userId = req.user.sub;
-    return this.inventoryService.getInventory(userId, hotelId, roomId);
+    return this.inventoryService.getInventoryRange(userId, hotelId, startDate, endDate);
   }
 
-  @Patch()
+  @Patch('rooms/:roomId/inventory')
   @HttpCode(200)
   @ApiOperation({
-    summary: 'Cập nhật số lượng phòng có sẵn (I-01)',
+    summary: 'Cập nhật kho phòng hàng loạt cho một phòng (giá, số lượng, stop-sell)',
   })
-  @ApiParam({ name: 'hotelId', description: 'ID của khách sạn' })
-  @ApiParam({ name: 'roomId', description: 'ID của phòng' })
-  @ApiOkResponse({
-    schema: {
-      example: {
-        data: {
-          id: 'room-123',
-          name: 'Deluxe Double Room',
-          roomType: 'Double Room',
-          availableCount: 5,
-          totalCount: 10,
-          price: 50000,
-          capacity: 2,
-        },
-        message: 'Cập nhật số lượng phòng thành công',
-      },
-    },
-  })
-  @ApiForbiddenResponse({ description: 'Không có quyền truy cập khách sạn' })
-  @ApiNotFoundResponse({ description: 'Phòng không tồn tại' })
-  @ApiBadRequestResponse({
-    description: 'Số phòng còn lại vượt quá tổng số phòng',
-  })
-  async updateInventory(
+  async updateRoomInventory(
     @Request() req: AuthRequest,
-    @Param('hotelId') hotelId: string,
     @Param('roomId') roomId: string,
-    @Body() dto: UpdateInventoryDto,
+    @Body() dto: BulkUpdateInventoryDto,
   ) {
     const userId = req.user.sub;
-    return this.inventoryService.updateInventory(userId, hotelId, roomId, dto);
+    return this.inventoryService.updateBulk(userId, roomId, dto);
   }
 }

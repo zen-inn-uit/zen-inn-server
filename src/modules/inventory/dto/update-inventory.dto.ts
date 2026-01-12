@@ -1,22 +1,38 @@
-import { IsInt, Min, IsOptional } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsDateString, IsOptional, IsInt, Min, IsBoolean, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateInventoryDto {
-  @ApiProperty({
-    example: 5,
-    description: 'Số phòng còn lại có sẵn (I-01)',
-  })
+  @ApiProperty({ example: '2026-01-12T00:00:00.000Z' })
+  @IsDateString()
+  date: string;
+
+  @ApiPropertyOptional({ example: 5 })
+  @IsOptional()
   @IsInt()
   @Min(0)
-  availableCount: number;
+  available?: number;
 
-  @ApiProperty({
-    example: 10,
-    description: 'Tổng số phòng loại này',
-    required: false,
-  })
-  @IsInt()
-  @Min(1)
+  @ApiPropertyOptional({ example: 1000000 })
   @IsOptional()
-  totalCount?: number;
+  @IsInt()
+  @Min(0)
+  price?: number;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  isStopSell?: boolean;
+}
+
+export class BulkUpdateInventoryDto {
+  @ApiProperty({ example: 'roomId_123' })
+  @IsString()
+  roomId: string;
+
+  @ApiProperty({ type: [UpdateInventoryDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateInventoryDto)
+  updates: UpdateInventoryDto[];
 }

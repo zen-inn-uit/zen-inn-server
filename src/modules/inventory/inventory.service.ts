@@ -1,26 +1,36 @@
 import {
   Injectable,
-  NotFoundException,
   ForbiddenException,
-  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
-import { UpdateInventoryDto } from './dto';
+import { BulkUpdateInventoryDto } from './dto/update-inventory.dto';
 
 @Injectable()
 export class InventoryService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Lấy thông tin số lượng phòng (I-01)
+   * Lấy dữ liệu kho phòng theo dải ngày cho tất cả các phòng thuộc khách sạn
    */
-  async getInventory(userId: string, hotelId: string, roomId: string) {
-    // Verify hotel belongs to user
+  async getInventoryRange(userId: string, hotelId: string, startDate: string, endDate: string) {
     const hotel = await this.prisma.hotel.findFirst({
-      where: {
-        id: hotelId,
-        partner: {
-          userId,
+      where: { id: hotelId, partner: { userId } },
+      include: {
+        rooms: {
+          include: {
+            inventory: {
+              where: {
+                date: {
+                  gte: new Date(startDate),
+                  lte: new Date(endDate),
+                },
+              },
+            },
+            ratePlans: {
+              where: { active: true },
+              take: 1
+            }
+          },
         },
       },
     });
@@ -29,94 +39,62 @@ export class InventoryService {
       throw new ForbiddenException('Bạn không có quyền truy cập khách sạn này');
     }
 
-    // Get room inventory
-    const room = await this.prisma.room.findFirst({
-      where: {
-        id: roomId,
-        hotelId,
-      },
-      select: {
-        id: true,
-        name: true,
-        roomType: true,
-        availableCount: true,
-        totalCount: true,
-        capacity: true,
-      },
-    });
-
-    if (!room) {
-      throw new NotFoundException('Phòng không tồn tại');
-    }
-
-    return {
-      data: room,
-    };
+    return hotel.rooms.map(room => ({
+      id: room.id,
+      name: room.name,
+      roomType: room.roomType,
+      totalCount: room.totalCount,
+      basePrice: room.ratePlans[0]?.basePrice || 0,
+      inventory: room.inventory,
+    }));
   }
 
   /**
-   * Cập nhật số lượng phòng (I-01)
+   * Cập nhật số lượng, giá hoặc stop-sell hàng loạt cho một phòng
    */
-  async updateInventory(
-    userId: string,
-    hotelId: string,
-    roomId: string,
-    dto: UpdateInventoryDto,
-  ) {
-    // Verify hotel belongs to user
-    const hotel = await this.prisma.hotel.findFirst({
-      where: {
-        id: hotelId,
-        partner: {
-          userId,
-        },
-      },
-    });
-
-    if (!hotel) {
-      throw new ForbiddenException('Bạn không có quyền truy cập khách sạn này');
-    }
-
-    // Verify room belongs to hotel
+  async updateBulk(userId: string, roomId: string, dto: BulkUpdateInventoryDto) {
     const room = await this.prisma.room.findFirst({
-      where: {
+      where: { 
         id: roomId,
-        hotelId,
-      },
+        hotel: { partner: { userId } }
+      }
     });
 
     if (!room) {
-      throw new NotFoundException('Phòng không tồn tại');
+      throw new ForbiddenException('Bạn không có quyền chỉnh sửa phòng này');
     }
 
-    // Validation: availableCount không được vượt quá totalCount
-    const totalCount = dto.totalCount ?? room.totalCount;
-    if (dto.availableCount > totalCount) {
-      throw new BadRequestException(
-        `Số phòng còn lại (${dto.availableCount}) không được vượt quá tổng số phòng (${totalCount})`,
-      );
-    }
+    const operations = dto.updates.map(update => {
+      const date = new Date(update.date);
+      date.setUTCHours(0, 0, 0, 0);
 
-    // Update inventory
-    const updated = await this.prisma.room.update({
-      where: { id: roomId },
-      data: {
-        availableCount: dto.availableCount,
-        ...(dto.totalCount && { totalCount: dto.totalCount }),
-      },
-      select: {
-        id: true,
-        name: true,
-        roomType: true,
-        availableCount: true,
-        totalCount: true,
-        capacity: true,
-      },
+      return this.prisma.roomInventory.upsert({
+        where: {
+          roomId_date: {
+            roomId,
+            date,
+          },
+        },
+        update: {
+          available: update.available,
+          price: update.price,
+          isStopSell: update.isStopSell,
+        },
+        create: {
+          roomId,
+          date,
+          available: update.available ?? room.totalCount,
+          price: update.price,
+          isStopSell: update.isStopSell ?? false,
+        },
+      });
     });
 
+    await Promise.all(operations);
+
     return {
-      data: updated,
-      message: 'Cập nhật số lượng phòng thành công',
+      success: true,
+      message: 'Cập nhật kho phòng thành công',
     };
   }
 }
