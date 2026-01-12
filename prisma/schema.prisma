@@ -1,0 +1,378 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String        @id @default(cuid())
+  email           String        @unique
+  role            Role          @default(CUSTOMER)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  emailVerifiedAt DateTime?
+  passwordHash    String?
+  provider        Provider      @default(PASSWORD)
+  providerId      String?
+  status          UserStatus    @default(PENDING)
+  sessions        AuthSession[]
+  bookings        Booking[]
+  otps            OtpCode[]
+  partner         Partner?
+}
+
+model Partner {
+  id                   String               @id @default(cuid())
+  userId               String               @unique
+  company              String?
+  kycStatus            KycStatus            @default(PENDING)
+  cancellationPolicies CancellationPolicy[]
+  hotels               Hotel[]
+  kycDocuments         KycDocument[]
+  user                 User                 @relation(fields: [userId], references: [id])
+  ratePlans            RatePlan[]
+}
+
+model Hotel {
+  id          String       @id @default(cuid())
+  partnerId   String
+  name        String
+  address     String
+  createdAt   DateTime     @default(now())
+  city        String
+  country     String
+  deletedAt   DateTime?
+  description String?
+  phone       String?
+  starRating  Int?
+  status      HotelStatus  @default(DRAFT)
+  updatedAt   DateTime     @updatedAt
+  partner     Partner      @relation(fields: [partnerId], references: [id])
+  images      HotelImage[]
+  rooms       Room[]
+  ratePlans   RatePlan[]
+  cancellationPolicies CancellationPolicy[]
+}
+
+model HotelImage {
+  id           String   @id @default(cuid())
+  hotelId      String
+  url          String
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  hotel        Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+}
+
+model Room {
+  id                   String              @id @default(cuid())
+  hotelId              String
+  name                 String
+  capacity             Int                 @default(2)
+  createdAt            DateTime            @default(now())
+  area                 Float?
+  availableCount       Int                 @default(0)
+  description          String?
+  roomType             String
+  totalCount           Int                 @default(1)
+  updatedAt            DateTime            @updatedAt
+  cancellationPolicyId String?
+  beds                 Bed[]
+  bookings             Booking[]
+  deals                Deal[]
+  cancellationPolicy   CancellationPolicy? @relation("RoomToPolicy", fields: [cancellationPolicyId], references: [id])
+  hotel                Hotel               @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  amenities            RoomAmenity[]
+  images               RoomImage[]
+  inventory            RoomInventory[]
+  ratePlans            RatePlan[]          @relation("RatePlanToRoom")
+}
+
+model RoomInventory {
+  id          String   @id @default(cuid())
+  roomId      String
+  date        DateTime
+  available   Int      @default(1)
+  price       Int?     // Daily price override
+  isStopSell  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, date])
+  @@index([roomId, date])
+}
+
+model Bed {
+  id        String   @id @default(cuid())
+  roomId    String
+  bedType   BedType
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model RoomImage {
+  id           String   @id @default(cuid())
+  roomId       String
+  url          String
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  room         Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model Amenity {
+  id            String          @id @default(cuid())
+  name          String          @unique
+  description   String?
+  icon          String?
+  category      AmenityCategory
+  createdAt     DateTime        @default(now())
+  roomAmenities RoomAmenity[]
+}
+
+model RoomAmenity {
+  id        String   @id @default(cuid())
+  roomId    String
+  amenityId String
+  createdAt DateTime @default(now())
+  amenity   Amenity  @relation(fields: [amenityId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, amenityId])
+}
+
+model RatePlan {
+  id                   String              @id @default(cuid())
+  name                 String
+  description          String?
+  rateCode             String?
+  basePrice            Int
+  minLos               Int                 @default(1)
+  maxLos               Int?
+  validFrom            DateTime
+  validUntil           DateTime
+  refundablePercent    Int                 @default(100)
+  depositRequired      Boolean             @default(false)
+  depositPercent       Int                 @default(0)
+  includesBreakfast    Boolean             @default(false)
+  includesDinner       Boolean             @default(false)
+  includesParking      Boolean             @default(false)
+  otherInclusions      String?
+  minGuestCount        Int                 @default(1)
+  maxGuestCount        Int?
+  modificationAllowed  Boolean             @default(true)
+  modificationFee      Int                 @default(0)
+  rateType             String?
+  active               Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  cancellationPolicyId String?
+  partnerId            String
+  hotelId              String?
+  bookings             Booking[]
+  cancellationPolicy   CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
+  partner              Partner             @relation(fields: [partnerId], references: [id])
+  hotel                Hotel?              @relation(fields: [hotelId], references: [id])
+  rooms                Room[]              @relation("RatePlanToRoom")
+}
+
+model Deal {
+  id          String   @id @default(cuid())
+  roomId      String
+  name        String
+  description String?
+  dealType    DealType
+  badge       String?
+  validFrom   DateTime
+  validUntil  DateTime
+  createdAt   DateTime @default(now())
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model Booking {
+  id                 String        @id @default(cuid())
+  userId             String
+  roomId             String
+  checkIn            DateTime
+  checkOut           DateTime
+  status             BookingStatus @default(PENDING)
+  createdAt          DateTime      @default(now())
+  cancellationReason String?
+  cancelledAt        DateTime?
+  guestCount         Int
+  guestEmail         String
+  guestName          String
+  guestPhone         String
+  nightCount         Int
+  paymentIntentId    String?
+  paymentMethod      PaymentMethod
+  paymentStatus      PaymentStatus @default(PENDING)
+  specialRequests    String?
+  totalPrice         Int
+  transactionId      String?
+  updatedAt          DateTime      @updatedAt
+  ratePlanId         String?
+  ratePlan           RatePlan?     @relation(fields: [ratePlanId], references: [id])
+  room               Room          @relation(fields: [roomId], references: [id])
+  user               User          @relation(fields: [userId], references: [id])
+}
+
+model AuthSession {
+  id          String    @id @default(cuid())
+  userId      String
+  refreshHash String
+  userAgent   String?
+  ip          String?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OtpCode {
+  id         String     @id @default(cuid())
+  userId     String
+  purpose    OtpPurpose
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@index([userId, purpose])
+}
+
+model KycDocument {
+  id        String   @id @default(cuid())
+  partnerId String
+  kind      String
+  url       String
+  createdAt DateTime @default(now())
+  partner   Partner  @relation(fields: [partnerId], references: [id])
+
+  @@index([partnerId, kind])
+}
+
+model CancellationPolicy {
+  id                     String     @id @default(cuid())
+  partnerId              String
+  name                   String
+  description            String?
+  freeCancellationHours  Int
+  refundablePercent      Int
+  noShowRefundPercent    Int        @default(0)
+  modificationAllowed    Boolean    @default(true)
+  modificationFeePercent Int        @default(0)
+  active                 Boolean    @default(true)
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+  partner                Partner    @relation(fields: [partnerId], references: [id])
+  hotelId                String?
+  hotel                  Hotel?     @relation(fields: [hotelId], references: [id])
+  ratePlans              RatePlan[]
+  rooms                  Room[]     @relation("RoomToPolicy")
+
+  @@index([partnerId])
+}
+
+model SystemLog {
+  id            String   @id @default(cuid())
+  eventType     String
+  eventCategory String
+  severity      String
+  userId        String?
+  resourceId    String?
+  resourceType  String?
+  message       String
+  metadata      Json?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([userId, createdAt])
+  @@index([eventCategory, createdAt])
+}
+
+enum Role {
+  CUSTOMER
+  PARTNER
+  ADMIN
+}
+
+enum KycStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING
+  BANNED
+}
+
+enum Provider {
+  PASSWORD
+  GOOGLE
+  FACEBOOK
+}
+
+enum OtpPurpose {
+  VERIFY_EMAIL
+  LOGIN
+  RESET
+}
+
+enum HotelStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum DealType {
+  LATE_ESCAPE
+  EARLY_BIRD
+  FLASH_SALE
+  SEASONAL
+}
+
+enum AmenityCategory {
+  ROOM_FEATURE
+  BATHROOM
+  ENTERTAINMENT
+  CONVENIENCE
+  SAFETY
+  ACCESSIBILITY
+}
+
+enum BedType {
+  SINGLE
+  DOUBLE
+  QUEEN
+  KING
+  TWIN
+  BUNK
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  SEPAY
+  BANK_TRANSFER
+  CASH
+}
