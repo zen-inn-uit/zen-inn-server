@@ -19,6 +19,7 @@ import { PaymentModule } from './modules/payment/payment.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { CancellationPoliciesModule } from './modules/cancellation-policies/cancellation-policies.module';
 import { LoggingModule } from './modules/logging/logging.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { LoggingModule } from './modules/logging/logging.module';
     PaymentModule,
     BookingsModule,
     CancellationPoliciesModule,
+    ReviewsModule,
   ],
   controllers: [HealthController],
   providers: [
