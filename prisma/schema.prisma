@@ -8,20 +8,37 @@ datasource db {
 }
 
 model User {
-  id              String        @id @default(cuid())
-  email           String        @unique
-  role            Role          @default(CUSTOMER)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id              String          @id @default(cuid())
+  email           String          @unique
+  role            Role            @default(CUSTOMER)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
   emailVerifiedAt DateTime?
   passwordHash    String?
-  provider        Provider      @default(PASSWORD)
+  provider        Provider        @default(PASSWORD)
   providerId      String?
-  status          UserStatus    @default(PENDING)
+  status          UserStatus      @default(PENDING)
+  fullName        String?
+  phoneNumber     String?
+  avatarUrl       String?
+  language        String          @default("en")
   sessions        AuthSession[]
   bookings        Booking[]
   otps            OtpCode[]
   partner         Partner?
+  wishlistItems   WishlistItem[]
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  hotelId   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, hotelId])
+  @@index([userId])
 }
 
 model Partner {
@@ -37,24 +54,25 @@ model Partner {
 }
 
 model Hotel {
-  id          String       @id @default(cuid())
+  id          String          @id @default(cuid())
   partnerId   String
   name        String
   address     String
-  createdAt   DateTime     @default(now())
+  createdAt   DateTime        @default(now())
   city        String
   country     String
   deletedAt   DateTime?
   description String?
   phone       String?
   starRating  Int?
-  status      HotelStatus  @default(DRAFT)
-  updatedAt   DateTime     @updatedAt
-  partner     Partner      @relation(fields: [partnerId], references: [id])
+  status      HotelStatus     @default(DRAFT)
+  updatedAt   DateTime        @updatedAt
+  partner     Partner         @relation(fields: [partnerId], references: [id])
   images      HotelImage[]
   rooms       Room[]
   ratePlans   RatePlan[]
   cancellationPolicies CancellationPolicy[]
+  wishlistItems WishlistItem[]
 }
 
 model HotelImage {

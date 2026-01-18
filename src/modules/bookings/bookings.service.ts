@@ -223,11 +223,8 @@ export class BookingsService {
       );
 
       return {
-        data: {
-          ...booking,
-          paymentUrl,
-        },
-        message: 'Booking created successfully. Please complete payment.',
+        booking,
+        paymentUrl: paymentUrl || null,
       };
     } finally {
       // Always release the lock
@@ -381,7 +378,7 @@ export class BookingsService {
     ]);
 
     return {
-      data: bookings,
+      items: bookings,
       meta: {
         total,
         page,
@@ -420,7 +417,7 @@ export class BookingsService {
       throw new NotFoundException('Booking not found');
     }
 
-    return { data: booking };
+    return { booking };
   }
 
   /**
@@ -612,7 +609,7 @@ export class BookingsService {
       );
 
       return {
-        data: updatedBooking,
+        booking: updatedBooking,
         message: 'Booking updated successfully',
       };
     } finally {
@@ -731,7 +728,7 @@ export class BookingsService {
     );
 
     return {
-      data: updatedBooking,
+      booking: updatedBooking,
       message: 'Booking cancelled successfully',
     };
   }

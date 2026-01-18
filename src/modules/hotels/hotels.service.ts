@@ -8,6 +8,8 @@ import { LoggingService } from '../logging/logging.service';
 import { CreateHotelDto } from './dto/create-hotel.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
 import { HotelStatus, KycStatus, Prisma } from '@prisma/client';
+import { SearchHotelDto } from './dto/search-hotel.dto';
+import { SearchHotelsResponseDto, HotelDetailResponseDto } from './dto/hotel-response.dto';
 
 @Injectable()
 export class HotelsService {
@@ -222,5 +224,191 @@ export class HotelsService {
     );
 
     return { success: true };
+  }
+
+  /**
+   * PUBLIC: Search available hotels for guests
+   * Filters by city, availability based on inventory, and applies sorting
+   * NOTE: V1 implementation uses simple logic; pricing aggregation is placeholder
+   */
+  async searchPublicHotels(dto: SearchHotelDto): Promise<SearchHotelsResponseDto> {
+    const page = dto.page || 1;
+    const limit = Math.min(dto.limit || 10, 100);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.HotelWhereInput = {
+      deletedAt: null,
+      status: HotelStatus.ACTIVE,
+    };
+
+    if (dto.city) {
+      where.city = {
+        contains: dto.city,
+        mode: 'insensitive',
+      };
+    }
+
+    // Fetch hotels with pagination
+    const [hotels, total] = await Promise.all([
+      this.prisma.hotel.findMany({
+        where,
+        include: {
+          images: {
+            take: 1,
+            orderBy: { displayOrder: 'asc' },
+          },
+          rooms: {
+            where: { availableCount: { gt: 0 } },
+            include: {
+              inventory: {
+                where: dto.checkIn
+                  ? {
+                      date: {
+                        gte: new Date(dto.checkIn),
+                      },
+                    }
+                  : undefined,
+              },
+              ratePlans: {
+                take: 1,
+              },
+            },
+          },
+        },
+        orderBy: this.getSortOrder(dto.sortBy),
+        skip,
+        take: limit,
+      }),
+      this.prisma.hotel.count({ where }),
+    ]);
+
+    const items = hotels.map(hotel => ({
+      id: hotel.id,
+      name: hotel.name,
+      city: hotel.city,
+      address: hotel.address,
+      thumbnailUrl: hotel.images.length > 0 ? hotel.images[0].url : null,
+      rating: null, // TODO: Calculate from reviews
+      reviewCount: 0, // TODO: Count reviews
+      startingPrice:
+        hotel.rooms.length > 0
+          ? Math.min(
+              ...hotel.rooms.map(r => r.ratePlans[0]?.basePrice || r.inventory[0]?.price || 0),
+            ) || null
+          : null,
+      currency: 'USD', // TODO: Make configurable
+      availableRoomsCount: hotel.rooms.length || null,
+    }));
+
+    return {
+      items,
+      meta: {
+        page,
+        limit,
+        total,
+      },
+    };
+  }
+
+  /**
+   * PUBLIC: Get hotel detail with room listings for guest booking
+   * NOTE: V1 returns null for pricing/availability if dates not provided
+   */
+  async getPublicHotelDetail(
+    hotelId: string,
+    checkIn?: string,
+    checkOut?: string,
+    adults?: number,
+    rooms?: number,
+  ): Promise<HotelDetailResponseDto | null> {
+    const hotel = await this.prisma.hotel.findFirst({
+      where: {
+        id: hotelId,
+        deletedAt: null,
+        status: HotelStatus.ACTIVE,
+      },
+      include: {
+        images: {
+          orderBy: { displayOrder: 'asc' },
+        },
+        rooms: {
+          include: {
+            images: {
+              orderBy: { displayOrder: 'asc' },
+            },
+            beds: true,
+            inventory: {
+              where: checkIn
+                ? {
+                    date: {
+                      gte: new Date(checkIn),
+                      ...(checkOut && { lte: new Date(checkOut) }),
+                    },
+                  }
+                : undefined,
+            },
+            ratePlans: {
+              take: 1,
+            },
+            cancellationPolicy: true,
+          },
+        },
+      },
+    });
+
+    if (!hotel) {
+      return null;
+    }
+
+    const roomDtos = hotel.rooms.map(room => {
+      const bedInfo =
+        room.beds.length > 0
+          ? room.beds.map(b => `${b.quantity} ${b.bedType}`).join(', ')
+          : null;
+
+      let pricePerNight: number | null = null;
+      if (checkIn && room.inventory.length > 0) {
+        pricePerNight = room.inventory[0].price || room.ratePlans[0]?.basePrice || null;
+      } else if (room.ratePlans[0]) {
+        pricePerNight = room.ratePlans[0].basePrice;
+      }
+
+      return {
+        roomId: room.id,
+        roomName: room.name,
+        maxGuests: room.capacity,
+        bedInfo,
+        images: room.images.map(img => img.url),
+        pricePerNight,
+        currency: 'USD', // TODO: Make configurable
+        availableCount: checkIn ? room.inventory.length : room.availableCount,
+        refundable: room.ratePlans[0]?.refundablePercent === 100 || null,
+        cancellationPolicyText: room.cancellationPolicy?.name || null,
+      };
+    });
+
+    return {
+      hotel: {
+        id: hotel.id,
+        name: hotel.name,
+        description: hotel.description,
+        city: hotel.city,
+        address: hotel.address,
+        images: hotel.images.map(img => img.url),
+        rating: null, // TODO: Calculate from reviews
+        reviewCount: 0, // TODO: Count reviews
+        facilities: [], // TODO: Map from amenities
+      },
+      rooms: roomDtos,
+    };
+  }
+
+  /**
+   * Helper: Get sort order for hotel search
+   */
+  private getSortOrder(sortBy?: string): Prisma.HotelOrderByWithRelationInput {
+    // TODO: Implement proper sorting
+    // For now, default to newest first
+    return { createdAt: 'desc' };
   }
 }

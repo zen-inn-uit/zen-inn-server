@@ -61,7 +61,32 @@ export class BookingsController {
   @Roles(Role.CUSTOMER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new booking' })
-  @ApiResponse({ status: 201, description: 'Booking created successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Booking created successfully',
+    schema: {
+      example: {
+        statusCode: 201,
+        message: 'Created',
+        data: {
+          booking: {
+            id: 'booking-id',
+            status: 'PENDING',
+            checkIn: '2026-02-01T00:00:00.000Z',
+            checkOut: '2026-02-03T00:00:00.000Z',
+            totalPrice: 200,
+            paymentStatus: 'PENDING',
+            room: {
+              id: 'room-id',
+              name: 'Deluxe Room',
+              hotel: { id: 'hotel-id', name: 'Zen Inn Hanoi' },
+            },
+          },
+          paymentUrl: 'https://payment.provider.com/intent/xyz',
+        },
+      },
+    },
+  })
   async createBooking(@Req() req: AuthRequest, @Body() dto: CreateBookingDto) {
     const userId = req.user.sub;
     return this.bookingsService.createBooking(userId, dto);
@@ -72,7 +97,34 @@ export class BookingsController {
   @Roles(Role.CUSTOMER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get my bookings' })
-  @ApiResponse({ status: 200, description: 'List of bookings' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of bookings',
+    schema: {
+      example: {
+        statusCode: 200,
+        message: 'OK',
+        data: {
+          items: [
+            {
+              id: 'booking-id',
+              status: 'CONFIRMED',
+              checkIn: '2026-02-01T00:00:00.000Z',
+              checkOut: '2026-02-03T00:00:00.000Z',
+              totalPrice: 200,
+              room: {
+                id: 'room-id',
+                name: 'Deluxe Room',
+                hotel: { id: 'hotel-id', name: 'Zen Inn Hanoi' },
+                images: [{ url: 'https://example.com/image.jpg' }],
+              },
+            },
+          ],
+          meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
+        },
+      },
+    },
+  })
   async getBookings(@Req() req: AuthRequest, @Query() query: QueryBookingDto) {
     const userId = req.user.sub;
     return this.bookingsService.getBookings(userId, query);
@@ -84,7 +136,33 @@ export class BookingsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get booking details by ID' })
   @ApiParam({ name: 'id', description: 'Booking ID' })
-  @ApiResponse({ status: 200, description: 'Booking details' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking details',
+    schema: {
+      example: {
+        statusCode: 200,
+        message: 'OK',
+        data: {
+          booking: {
+            id: 'booking-id',
+            status: 'CONFIRMED',
+            checkIn: '2026-02-01T00:00:00.000Z',
+            checkOut: '2026-02-03T00:00:00.000Z',
+            totalPrice: 200,
+            room: {
+              id: 'room-id',
+              name: 'Deluxe Room',
+              hotel: { id: 'hotel-id', name: 'Zen Inn Hanoi' },
+              images: [{ url: 'https://example.com/image.jpg' }],
+              beds: [{ type: 'Queen', count: 1 }],
+              amenities: [{ amenity: { name: 'WiFi' } }],
+            },
+          },
+        },
+      },
+    },
+  })
   async getBookingById(@Req() req: AuthRequest, @Param('id') id: string) {
     const userId = req.user.sub;
     return this.bookingsService.getBookingById(userId, id);
@@ -96,7 +174,30 @@ export class BookingsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Modify a booking' })
   @ApiParam({ name: 'id', description: 'Booking ID' })
-  @ApiResponse({ status: 200, description: 'Booking updated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking updated successfully',
+    schema: {
+      example: {
+        statusCode: 200,
+        message: 'OK',
+        data: {
+          booking: {
+            id: 'booking-id',
+            status: 'CONFIRMED',
+            checkIn: '2026-02-02T00:00:00.000Z',
+            checkOut: '2026-02-04T00:00:00.000Z',
+            totalPrice: 240,
+            room: {
+              id: 'room-id',
+              name: 'Deluxe Room',
+              hotel: { id: 'hotel-id', name: 'Zen Inn Hanoi' },
+            },
+          },
+        },
+      },
+    },
+  })
   async updateBooking(
     @Req() req: AuthRequest,
     @Param('id') id: string,
@@ -112,7 +213,30 @@ export class BookingsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cancel a booking' })
   @ApiParam({ name: 'id', description: 'Booking ID' })
-  @ApiResponse({ status: 200, description: 'Booking cancelled successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking cancelled successfully',
+    schema: {
+      example: {
+        statusCode: 200,
+        message: 'OK',
+        data: {
+          booking: {
+            id: 'booking-id',
+            status: 'CANCELLED',
+            checkIn: '2026-02-01T00:00:00.000Z',
+            checkOut: '2026-02-03T00:00:00.000Z',
+            totalPrice: 200,
+            room: {
+              id: 'room-id',
+              name: 'Deluxe Room',
+              hotel: { id: 'hotel-id', name: 'Zen Inn Hanoi' },
+            },
+          },
+        },
+      },
+    },
+  })
   async cancelBooking(
     @Req() req: AuthRequest,
     @Param('id') id: string,
