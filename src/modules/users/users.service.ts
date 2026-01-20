@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { Provider, UserStatus } from '@prisma/client';
+import { UserProfileDto, UpdateUserProfileDto } from './dto/user-profile.dto';
 
 @Injectable()
 export class UsersService {
@@ -43,5 +44,58 @@ export class UsersService {
         status: UserStatus.ACTIVE,
       },
     });
+  }
+
+  /**
+   * Get user profile (public fields for customer)
+   */
+  async getProfile(userId: string): Promise<UserProfileDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      phoneNumber: user.phoneNumber,
+      avatarUrl: user.avatarUrl,
+      language: user.language,
+      createdAt: user.createdAt,
+    };
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateProfile(
+    userId: string,
+    dto: UpdateUserProfileDto,
+  ): Promise<UserProfileDto> {
+    const updateData: Record<string, unknown> = {};
+
+    if (dto.fullName !== undefined) updateData.fullName = dto.fullName;
+    if (dto.phoneNumber !== undefined) updateData.phoneNumber = dto.phoneNumber;
+    if (dto.avatarUrl !== undefined) updateData.avatarUrl = dto.avatarUrl;
+    if (dto.language !== undefined) updateData.language = dto.language;
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      phoneNumber: user.phoneNumber,
+      avatarUrl: user.avatarUrl,
+      language: user.language,
+      createdAt: user.createdAt,
+    };
   }
 }
