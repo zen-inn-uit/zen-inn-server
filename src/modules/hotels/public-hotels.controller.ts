@@ -2,7 +2,7 @@ import { Controller, Get, Param, Query, NotFoundException } from '@nestjs/common
 import { ApiTags, ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { HotelsService } from './hotels.service';
 import { SearchHotelDto } from './dto/search-hotel.dto';
-import { SearchHotelsResponseDto, HotelDetailResponseDto } from './dto/hotel-response.dto';
+import { SearchHotelsResponseDto, HotelDetailResponseDto, HotelSearchItemDto } from './dto/hotel-response.dto';
 
 /**
  * Public Hotels Controller
@@ -12,6 +12,21 @@ import { SearchHotelsResponseDto, HotelDetailResponseDto } from './dto/hotel-res
 @Controller('hotels')
 export class PublicHotelsController {
   constructor(private readonly hotelsService: HotelsService) {}
+
+  @Get('featured')
+  @ApiOperation({ summary: 'Get featured hotels for home page' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Number of hotels to return (default 10)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Featured hotels retrieved successfully',
+    type: [SearchHotelsResponseDto],
+  })
+  async getFeaturedHotels(
+    @Query('limit') limit?: string,
+  ): Promise<HotelSearchItemDto[]> {
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.hotelsService.getFeaturedHotels(limitNum);
+  }
 
   @Get('search')
   @ApiOperation({ summary: 'Search available hotels' })

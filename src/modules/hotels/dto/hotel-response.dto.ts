@@ -9,6 +9,8 @@ export class HotelSearchItemDto {
   startingPrice: number | null;
   currency: string;
   availableRoomsCount: number | null;
+  maxGuests: number | null;
+  bedroomCount: number | null;
 }
 
 export class SearchHotelsResponseDto {
@@ -40,6 +42,7 @@ export class HotelDetailResponseDto {
     description: string | null;
     city: string;
     address: string;
+    country: string;
     images: string[];
     rating: number | null;
     reviewCount: number;

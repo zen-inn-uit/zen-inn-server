@@ -9,7 +9,7 @@ import { CreateHotelDto } from './dto/create-hotel.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
 import { HotelStatus, KycStatus, Prisma } from '@prisma/client';
 import { SearchHotelDto } from './dto/search-hotel.dto';
-import { SearchHotelsResponseDto, HotelDetailResponseDto } from './dto/hotel-response.dto';
+import { SearchHotelsResponseDto, HotelDetailResponseDto, HotelSearchItemDto } from './dto/hotel-response.dto';
 
 @Injectable()
 export class HotelsService {
@@ -242,12 +242,17 @@ export class HotelsService {
     };
 
     if (dto.city) {
-      where.city = {
-        contains: dto.city,
-        mode: 'insensitive',
-      };
+      where.OR = [
+        { city: { contains: dto.city, mode: 'insensitive' } },
+        { address: { contains: dto.city, mode: 'insensitive' } },
+        { name: { contains: dto.city, mode: 'insensitive' } },
+      ];
     }
 
+    // Availability check if dates are provided
+    // For V1, we still fetch hotels and filter, but a more robust implementation 
+    // would use a subquery or join with inventory.
+    
     // Fetch hotels with pagination
     const [hotels, total] = await Promise.all([
       this.prisma.hotel.findMany({
@@ -258,18 +263,24 @@ export class HotelsService {
             orderBy: { displayOrder: 'asc' },
           },
           rooms: {
-            where: { availableCount: { gt: 0 } },
+            where: {
+              ...(dto.adults ? { capacity: { gte: dto.adults } } : {}),
+            },
             include: {
               inventory: {
-                where: dto.checkIn
+                where: dto.checkIn && dto.checkOut
                   ? {
                       date: {
                         gte: new Date(dto.checkIn),
+                        lt: new Date(dto.checkOut),
                       },
+                      available: { gte: dto.rooms || 1 },
+                      isStopSell: false,
                     }
                   : undefined,
               },
               ratePlans: {
+                where: { active: true },
                 take: 1,
               },
             },
@@ -282,32 +293,157 @@ export class HotelsService {
       this.prisma.hotel.count({ where }),
     ]);
 
-    const items = hotels.map(hotel => ({
-      id: hotel.id,
-      name: hotel.name,
-      city: hotel.city,
-      address: hotel.address,
-      thumbnailUrl: hotel.images.length > 0 ? hotel.images[0].url : null,
-      rating: null, // TODO: Calculate from reviews
-      reviewCount: 0, // TODO: Count reviews
-      startingPrice:
-        hotel.rooms.length > 0
-          ? Math.min(
-              ...hotel.rooms.map(r => r.ratePlans[0]?.basePrice || r.inventory[0]?.price || 0),
-            ) || null
-          : null,
-      currency: 'USD', // TODO: Make configurable
-      availableRoomsCount: hotel.rooms.length || null,
-    }));
+    // Calculate nights for correctly checking availability
+    const nights = (dto.checkIn && dto.checkOut) 
+      ? Math.ceil((new Date(dto.checkOut).getTime() - new Date(dto.checkIn).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    const items = (hotels as any[])
+      .filter(hotel => {
+        // If dates provided, ensure at least one room has availability for ALL nights
+        if (nights > 0) {
+          return hotel.rooms.some(room => room.inventory.length === nights);
+        }
+        return hotel.rooms.length > 0;
+      })
+      .map(hotel => {
+        // Find the lowest price among available rooms
+        const availableRooms = nights > 0 
+          ? hotel.rooms.filter(room => room.inventory.length === nights)
+          : hotel.rooms;
+        
+        const startingPrice = availableRooms.length > 0
+          ? Math.min(...availableRooms.map(r => {
+              if (nights > 0) {
+                // Sum price for all nights
+                return r.inventory.reduce((sum, inv) => sum + (inv.price || r.ratePlans[0]?.basePrice || 0), 0);
+              }
+              return r.ratePlans[0]?.basePrice || 0;
+            }))
+          : null;
+
+        // Calculate max guests and bedroom count from available rooms
+        const maxGuests = availableRooms.length > 0
+          ? Math.max(...availableRooms.map(r => r.capacity))
+          : null;
+        
+        const bedroomCount = availableRooms.length > 0
+          ? Math.max(...availableRooms.map(r => r.beds?.length || 0))
+          : null;
+
+        return {
+          id: hotel.id,
+          name: hotel.name,
+          city: hotel.city,
+          address: hotel.address,
+          thumbnailUrl: hotel.images.length > 0 ? hotel.images[0].url : null,
+          rating: hotel.starRating || null,
+          reviewCount: 0, // TODO: Count reviews
+          startingPrice,
+          currency: 'USD',
+          availableRoomsCount: availableRooms.length || null,
+          maxGuests,
+          bedroomCount,
+        };
+      });
 
     return {
       items,
       meta: {
         page,
         limit,
-        total,
+        total, // Note: total is for the initial query, filtering might reduce actual count per page
       },
     };
+  }
+
+  /**
+   * PUBLIC: Get featured hotels for home page
+   * Returns random selection of active hotels with their ratings
+   */
+  async getFeaturedHotels(limit: number = 10): Promise<HotelSearchItemDto[]> {
+    // Get all active hotels with their first image and reviews
+    const hotels = await this.prisma.hotel.findMany({
+      where: {
+        deletedAt: null,
+        status: HotelStatus.ACTIVE,
+      },
+      include: {
+        images: {
+          orderBy: { displayOrder: 'asc' },
+          take: 1,
+        },
+        reviews: {
+          select: {
+            rating: true,
+          },
+        },
+        rooms: {
+          include: {
+            beds: true,
+            ratePlans: {
+              where: {
+                active: true,
+              },
+              orderBy: {
+                basePrice: 'asc',
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+      take: 100, // Get more than needed for randomization
+    });
+
+    // Transform and calculate ratings
+    const hotelItems: HotelSearchItemDto[] = hotels.map(hotel => {
+      const reviewCount = hotel.reviews.length;
+      const averageRating = reviewCount > 0
+        ? hotel.reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+        : null;
+
+      // Get starting price from cheapest room
+      let startingPrice: number | null = null;
+      for (const room of hotel.rooms) {
+        if (room.ratePlans.length > 0) {
+          const price = room.ratePlans[0].basePrice;
+          if (startingPrice === null || price < startingPrice) {
+            startingPrice = price;
+          }
+        }
+      }
+
+      // Calculate max guests and bedroom count
+      const maxGuests = hotel.rooms.length > 0
+        ? Math.max(...hotel.rooms.map(r => r.capacity))
+        : null;
+      
+      const bedroomCount = hotel.rooms.length > 0
+        ? Math.max(...hotel.rooms.map(r => r.beds?.length || 0))
+        : null;
+
+      return {
+        id: hotel.id,
+        name: hotel.name,
+        city: hotel.city,
+        address: hotel.address,
+        thumbnailUrl: hotel.images[0]?.url || null,
+        rating: averageRating ? Math.round(averageRating * 10) / 10 : null,
+        reviewCount,
+        startingPrice,
+        currency: 'USD',
+        availableRoomsCount: hotel.rooms.reduce((sum, room) => sum + room.availableCount, 0),
+        maxGuests,
+        bedroomCount,
+      };
+    });
+
+    // Shuffle array randomly
+    const shuffled = hotelItems.sort(() => Math.random() - 0.5);
+
+    // Return requested number of hotels
+    return shuffled.slice(0, Math.min(limit, shuffled.length));
   }
 
   /**
@@ -351,6 +487,16 @@ export class HotelsService {
               take: 1,
             },
             cancellationPolicy: true,
+            amenities: {
+              include: {
+                amenity: true,
+              },
+            },
+          },
+        },
+        reviews: {
+          select: {
+            rating: true,
           },
         },
       },
@@ -359,6 +505,21 @@ export class HotelsService {
     if (!hotel) {
       return null;
     }
+
+    // Calculate average rating and review count
+    const reviewCount = hotel.reviews.length;
+    const averageRating = reviewCount > 0
+      ? hotel.reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+      : null;
+
+    // Collect unique facilities from all rooms' amenities
+    const facilitiesSet = new Set<string>();
+    hotel.rooms.forEach(room => {
+      room.amenities.forEach(ra => {
+        facilitiesSet.add(ra.amenity.name);
+      });
+    });
+    const facilities = Array.from(facilitiesSet);
 
     const roomDtos = hotel.rooms.map(room => {
       const bedInfo =
@@ -394,10 +555,11 @@ export class HotelsService {
         description: hotel.description,
         city: hotel.city,
         address: hotel.address,
+        country: hotel.country,
         images: hotel.images.map(img => img.url),
-        rating: null, // TODO: Calculate from reviews
-        reviewCount: 0, // TODO: Count reviews
-        facilities: [], // TODO: Map from amenities
+        rating: averageRating ? Math.round(averageRating * 10) / 10 : null,
+        reviewCount,
+        facilities,
       },
       rooms: roomDtos,
     };
@@ -407,8 +569,16 @@ export class HotelsService {
    * Helper: Get sort order for hotel search
    */
   private getSortOrder(sortBy?: string): Prisma.HotelOrderByWithRelationInput {
-    // TODO: Implement proper sorting
-    // For now, default to newest first
-    return { createdAt: 'desc' };
+    switch (sortBy) {
+      case 'price_asc':
+        // Note: For now we sort by hotel creation as a fallback
+        // Proper price sorting would require a more complex query or denormalized data
+        return { createdAt: 'desc' };
+      case 'rating_desc':
+        return { starRating: 'desc' };
+      case 'recommended':
+      default:
+        return { createdAt: 'desc' };
+    }
   }
 }
