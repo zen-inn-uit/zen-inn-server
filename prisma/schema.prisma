@@ -27,6 +27,8 @@ model User {
   otps            OtpCode[]
   partner         Partner?
   wishlistItems   WishlistItem[]
+  reviews         Review[]
+  trips           Trip[]
 }
 
 model WishlistItem {
@@ -73,6 +75,8 @@ model Hotel {
   ratePlans   RatePlan[]
   cancellationPolicies CancellationPolicy[]
   wishlistItems WishlistItem[]
+  reviews     Review[]
+  trips       Trip[]
 }
 
 model HotelImage {
@@ -233,6 +237,7 @@ model Booking {
   transactionId      String?
   updatedAt          DateTime      @updatedAt
   ratePlanId         String?
+  review             Review?
   ratePlan           RatePlan?     @relation(fields: [ratePlanId], references: [id])
   room               Room          @relation(fields: [roomId], references: [id])
   user               User          @relation(fields: [userId], references: [id])
@@ -247,6 +252,23 @@ model AuthSession {
   createdAt   DateTime  @default(now())
   revokedAt   DateTime?
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  bookingId String   @unique
+  userId    String
+  hotelId   String
+  rating    Int      // 1-5 stars
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@index([hotelId, createdAt])
+  @@index([userId])
 }
 
 model OtpCode {
@@ -394,3 +416,62 @@ enum PaymentMethod {
   BANK_TRANSFER
   CASH
 }
+
+model Trip {
+  id          String   @id @default(cuid())
+  userId      String
+  destination String
+  checkIn     DateTime
+  checkOut    DateTime
+  adults      Int
+  children    Int      @default(0)
+  budget      String?
+  preferences String[] // Array of preference tags
+  hotelId     String?  // Optional: user can associate trip with a hotel booking
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hotel      Hotel?          @relation(fields: [hotelId], references: [id], onDelete: SetNull)
+  days       TripDay[]
+  
+  @@index([userId, createdAt])
+}
+
+model TripDay {
+  id          String   @id @default(cuid())
+  tripId      String
+  dayNumber   Int      // 1, 2, 3, etc.
+  date        DateTime
+  activities  TripActivity[]
+  
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  
+  @@unique([tripId, dayNumber])
+}
+
+model TripActivity {
+  id          String       @id @default(cuid())
+  tripDayId   String
+  name        String
+  description String?
+  time        String       // e.g., "11:00 AM", "1:30 PM"
+  type        ActivityType
+  location    String?
+  price       String?      // e.g., "₹1,200-₹1,800", "Free"
+  imageUrl    String?
+  displayOrder Int         @default(0)
+  
+  tripDay     TripDay      @relation(fields: [tripDayId], references: [id], onDelete: Cascade)
+}
+
+enum ActivityType {
+  CHECK_IN
+  CHECK_OUT
+  DINING
+  ACTIVITY
+  EXPERIENCE
+  RELAXATION
+  TRANSPORTATION
+}
+

@@ -20,6 +20,7 @@ import { BookingsModule } from './modules/bookings/bookings.module';
 import { CancellationPoliciesModule } from './modules/cancellation-policies/cancellation-policies.module';
 import { LoggingModule } from './modules/logging/logging.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
+import { AIPlannerModule } from './modules/ai-planner/ai-planner.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { WishlistModule } from './modules/wishlist/wishlist.module';
     BookingsModule,
     CancellationPoliciesModule,
     WishlistModule,
+    AIPlannerModule,
   ],
   controllers: [HealthController],
   providers: [
