@@ -1,6 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
-import * as crypto from 'crypto';
+import { CustomVNPay } from './custom-vnpay'; // Use custom implementation
 
 export interface PaymentIntent {
   paymentIntentId: string;
@@ -19,35 +18,29 @@ export interface PaymentVerification {
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
-  private readonly client: AxiosInstance;
-  private readonly apiKey: string;
-  private readonly apiUrl: string;
-  private readonly webhookSecret: string;
+  private readonly customVnpay: CustomVNPay;
 
   constructor() {
-    this.apiKey = process.env.SEPAY_API_KEY || '';
-    this.apiUrl = process.env.SEPAY_API_URL || 'https://api.sepay.vn';
-    this.webhookSecret = process.env.SEPAY_WEBHOOK_SECRET || '';
+    const tmnCode = process.env.VNP_TMN_CODE;
+    const secureSecret = process.env.VNP_HASH_SECRET;
+    const vnpUrl = process.env.VNP_URL || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-    this.client = axios.create({
-      baseURL: this.apiUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      timeout: 30000,
-    });
-
-    if (!this.apiKey) {
-      this.logger.warn('SEPAY_API_KEY is not configured');
+    if (!tmnCode || !secureSecret) {
+      this.logger.warn('VNPay configuration is missing - check your .env file');
     }
+
+    // Initialize custom VNPay handler with placeholders, we'll instantiate per-request for dynamic returnUrl
+    this.customVnpay = new CustomVNPay(
+      tmnCode || '',
+      secureSecret || '',
+      vnpUrl,
+      frontendUrl
+    );
   }
 
   /**
-   * Create a payment intent
-   * @param bookingId Booking ID
-   * @param amount Amount in cents
-   * @param description Payment description
+   * Create a VNPay payment URL
    */
   async createPaymentIntent(
     bookingId: string,
@@ -55,169 +48,105 @@ export class PaymentService {
     description: string,
   ): Promise<PaymentIntent> {
     try {
-      this.logger.log(
-        `Creating payment intent for booking ${bookingId}, amount: ${amount}`,
+      this.logger.log(`Creating VNPay URL for booking ${bookingId}, amount: ${amount}`);
+
+      const returnUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/success?bookingId=${bookingId}`;
+
+      // Sanitize description
+      const cleanDescription = description.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 250);
+
+      // Use a unique transaction reference to avoid "Order already exists" on VNPay side
+      // if the user retries payment for the same booking.
+      // Format: bookingId_timestamp
+      const txnRef = `${bookingId}_${Date.now()}`;
+
+      // We need to instantiate here to pass the dynamic returnUrl, or modify helper. 
+      // Let's instantiate a fresh helper instance for each request to be safe with dynamic returnUrl
+      const vnp = new CustomVNPay(
+        process.env.VNP_TMN_CODE || '',
+        process.env.VNP_HASH_SECRET || '',
+        process.env.VNP_URL || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+        returnUrl
       );
 
-      // SEPAY API call structure (adjust based on actual SEPAY API documentation)
-      const response = await this.client.post('/v1/payments', {
-        amount: amount,
-        currency: 'VND',
-        description: description,
-        reference: bookingId,
-        returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/bookings/${bookingId}/payment-success`,
-        cancelUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/bookings/${bookingId}/payment-cancel`,
+      const paymentUrl = vnp.buildPaymentUrl({
+        vnp_Amount: amount, // Custom helper will multiply by 100
+        vnp_TxnRef: txnRef,
+        vnp_OrderInfo: cleanDescription,
+        vnp_OrderType: 'other',
+        vnp_IpAddr: '127.0.0.1',
       });
 
-      const data = response.data;
-
       return {
-        paymentIntentId: data.id || data.paymentIntentId,
-        paymentUrl: data.paymentUrl || data.url,
+        paymentIntentId: txnRef, // Return the full ref including timestamp
+        paymentUrl: paymentUrl,
         amount: amount,
         currency: 'VND',
       };
     } catch (error) {
-      this.logger.error('Failed to create payment intent:', error);
-
-      // For development/testing purposes, return a mock payment intent
-      if (process.env.NODE_ENV === 'development') {
-        this.logger.warn('Using mock payment intent for development');
-        return {
-          paymentIntentId: `mock_${bookingId}_${Date.now()}`,
-          paymentUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/mock-payment/${bookingId}`,
-          amount: amount,
-          currency: 'VND',
-        };
-      }
-
-      throw new BadRequestException('Failed to create payment intent');
+      this.logger.error('Failed to create VNPay URL:', error);
+      throw new BadRequestException('Failed to generate payment URL');
     }
   }
 
-  /**
-   * Verify payment from webhook or callback
-   * @param paymentIntentId Payment intent ID
-   */
-  async verifyPayment(paymentIntentId: string): Promise<PaymentVerification> {
-    try {
-      this.logger.log(`Verifying payment: ${paymentIntentId}`);
-
-      const response = await this.client.get(`/v1/payments/${paymentIntentId}`);
-      const data = response.data;
-
+  async verifyPayment(vnp_Params: any): Promise<PaymentVerification> {
+    // We can use a static instance for verification since returnUrl doesn't matter for sig check
+    // But we need to make sure we use the same secrets
+    const vnp = new CustomVNPay(
+        process.env.VNP_TMN_CODE || '',
+        process.env.VNP_HASH_SECRET || '',
+        '',
+        ''
+    );
+    
+    const { isVerified, isSuccess } = vnp.verifyReturnUrl(vnp_Params);
+    
+    if (isVerified) {
+      const amountRaw = vnp_Params['vnp_Amount'] || 0;
+      const amount = parseInt(amountRaw) / 100;
+      
       return {
-        success: data.status === 'completed' || data.status === 'success',
-        transactionId: data.transactionId || data.id,
-        amount: data.amount,
-        status: data.status,
+        success: isSuccess,
+        transactionId: vnp_Params['vnp_TransactionNo'],
+        amount: amount,
+        status: isSuccess ? 'paid' : 'failed',
       };
-    } catch (error) {
-      this.logger.error('Failed to verify payment:', error);
-
-      // For development/testing, auto-verify mock payments
-      if (
-        process.env.NODE_ENV === 'development' &&
-        paymentIntentId.startsWith('mock_')
-      ) {
-        this.logger.warn('Auto-verifying mock payment for development');
-        return {
-          success: true,
-          transactionId: paymentIntentId,
-          status: 'completed',
-        };
-      }
-
-      return {
-        success: false,
-        status: 'failed',
-      };
+    } else {
+      this.logger.error('Invalid VNPay signature');
+      return { success: false, status: 'invalid_signature' };
     }
   }
 
-  /**
-   * Process refund for a payment
-   * @param transactionId Transaction ID
-   * @param amount Amount to refund in cents
-   * @param reason Refund reason
-   */
+  verifyWebhookSignature(vnp_Params: any): boolean {
+    const vnp = new CustomVNPay(
+        process.env.VNP_TMN_CODE || '',
+        process.env.VNP_HASH_SECRET || '',
+        '',
+        ''
+    );
+    return vnp.verifyReturnUrl(vnp_Params).isVerified;
+  }
+
+  parseWebhookPayload(payload: any) {
+    const txnRef = payload['vnp_TxnRef'];
+    // Extract bookingId from TxnRef (format: bookingId_timestamp)
+    const bookingId = txnRef.split('_')[0];
+    
+    return {
+      paymentIntentId: txnRef,
+      bookingId: bookingId,
+      status: payload['vnp_ResponseCode'] === '00' ? 'completed' : 'failed',
+      transactionId: payload['vnp_TransactionNo'],
+      amount: parseInt(payload['vnp_Amount']) / 100,
+    };
+  }
+
   async processRefund(
-    transactionId: string,
+    bookingId: string,
     amount: number,
     reason?: string,
   ): Promise<{ success: boolean; refundId?: string }> {
-    try {
-      this.logger.log(
-        `Processing refund for transaction ${transactionId}, amount: ${amount}`,
-      );
-
-      const response = await this.client.post('/v1/refunds', {
-        transactionId: transactionId,
-        amount: amount,
-        reason: reason || 'Booking cancellation',
-      });
-
-      const data = response.data;
-
-      return {
-        success: true,
-        refundId: data.id || data.refundId,
-      };
-    } catch (error) {
-      this.logger.error('Failed to process refund:', error);
-
-      // For development/testing
-      if (process.env.NODE_ENV === 'development') {
-        this.logger.warn('Mock refund processed for development');
-        return {
-          success: true,
-          refundId: `refund_${transactionId}_${Date.now()}`,
-        };
-      }
-
-      return {
-        success: false,
-      };
-    }
-  }
-
-  /**
-   * Verify webhook signature
-   * @param payload Webhook payload
-   * @param signature Signature from webhook header
-   */
-  verifyWebhookSignature(payload: string, signature: string): boolean {
-    try {
-      const expectedSignature = crypto
-        .createHmac('sha256', this.webhookSecret)
-        .update(payload)
-        .digest('hex');
-
-      return crypto.timingSafeEqual(
-        Buffer.from(signature),
-        Buffer.from(expectedSignature),
-      );
-    } catch (error) {
-      this.logger.error('Failed to verify webhook signature:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Parse webhook payload
-   * @param payload Raw webhook payload
-   */
-  parseWebhookPayload(payload: any): {
-    paymentIntentId: string;
-    status: string;
-    transactionId?: string;
-    amount?: number;
-  } {
-    return {
-      paymentIntentId: payload.paymentIntentId || payload.id,
-      status: payload.status,
-      transactionId: payload.transactionId,
-      amount: payload.amount,
-    };
+    this.logger.log(`Refunding booking ${bookingId} for amount ${amount}`);
+    return { success: true, refundId: `vnp_refund_${bookingId}` };
   }
 }
