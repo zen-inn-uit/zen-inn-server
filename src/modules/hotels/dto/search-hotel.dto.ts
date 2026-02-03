@@ -1,5 +1,5 @@
-import { IsOptional, IsString, IsNumber, Min, Max, IsEnum } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsString, IsNumber, Min, Max, IsEnum, IsArray } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 
 export enum SortByEnum {
   RECOMMENDED = 'recommended',
@@ -11,6 +11,10 @@ export class SearchHotelDto {
   @IsOptional()
   @IsString()
   city?: string;
+
+  @IsOptional()
+  @IsString()
+  location?: string; // Alias for city
 
   @IsOptional()
   @IsString()
@@ -48,4 +52,54 @@ export class SearchHotelDto {
   @IsOptional()
   @IsEnum(SortByEnum)
   sortBy?: SortByEnum;
+
+  // Filter parameters
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minPrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxPrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(5)
+  minRating?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.split(',').map(Number);
+    }
+    return Array.isArray(value) ? value.map(Number) : [];
+  })
+  @IsArray()
+  starRatings?: number[]; // e.g., [3, 4, 5] for 3-star, 4-star, 5-star hotels
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.split(',');
+    }
+    return Array.isArray(value) ? value : [];
+  })
+  @IsArray()
+  amenities?: string[]; // Array of amenity names or IDs
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.split(',');
+    }
+    return Array.isArray(value) ? value : [];
+  })
+  @IsArray()
+  roomTypes?: string[]; // e.g., ['Suite', 'Deluxe', 'Villa']
 }
