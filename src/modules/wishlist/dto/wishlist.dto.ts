@@ -1,6 +1,7 @@
 export class WishlistItemDto {
   id: string;
   hotelId: string;
+  hotelSlug: string;
   name: string;
   city: string;
   address: string;

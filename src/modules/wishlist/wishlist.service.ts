@@ -39,6 +39,7 @@ export class WishlistService {
     const items: WishlistItemDto[] = wishlistItems.map(item => ({
       id: item.id,
       hotelId: item.hotel.id,
+      hotelSlug: item.hotel.slug,
       name: item.hotel.name,
       city: item.hotel.city,
       address: item.hotel.address,
