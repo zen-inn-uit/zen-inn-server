@@ -29,15 +29,22 @@ export class PublicHotelsController {
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Search available hotels' })
+  @ApiOperation({ summary: 'Search available hotels with filters' })
   @ApiQuery({ name: 'city', required: false, description: 'City name to filter' })
+  @ApiQuery({ name: 'location', required: false, description: 'Location name (alias for city)' })
   @ApiQuery({ name: 'checkIn', required: false, description: 'Check-in date (YYYY-MM-DD)' })
   @ApiQuery({ name: 'checkOut', required: false, description: 'Check-out date (YYYY-MM-DD)' })
   @ApiQuery({ name: 'adults', required: false, description: 'Number of adults' })
   @ApiQuery({ name: 'rooms', required: false, description: 'Number of rooms' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number (default 1)' })
   @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default 10, max 100)' })
-  @ApiQuery({ name: 'sortBy', required: false, enum: ['recommended', 'price_asc', 'rating_desc'] })
+  @ApiQuery({ name: 'sortBy', required: false, enum: ['recommended', 'price_asc', 'rating_desc'], description: 'Sort order' })
+  @ApiQuery({ name: 'minPrice', required: false, description: 'Minimum price filter' })
+  @ApiQuery({ name: 'maxPrice', required: false, description: 'Maximum price filter' })
+  @ApiQuery({ name: 'minRating', required: false, description: 'Minimum star rating (1-5)' })
+  @ApiQuery({ name: 'starRatings', required: false, description: 'Filter by specific star ratings (comma-separated, e.g., "3,4,5")' })
+  @ApiQuery({ name: 'amenities', required: false, description: 'Filter by amenities (comma-separated, e.g., "WiFi,Air Conditioning")' })
+  @ApiQuery({ name: 'roomTypes', required: false, description: 'Filter by room types (comma-separated, e.g., "Suite,Deluxe,Villa")' })
   @ApiResponse({
     status: 200,
     description: 'Hotels list retrieved successfully',
@@ -49,8 +56,8 @@ export class PublicHotelsController {
     return this.hotelsService.searchPublicHotels(query);
   }
 
-  @Get(':hotelId')
-  @ApiOperation({ summary: 'Get hotel details with available rooms' })
+  @Get(':hotelIdOrSlug')
+  @ApiOperation({ summary: 'Get hotel details with available rooms (by ID or slug)' })
   @ApiQuery({ name: 'checkIn', required: false, description: 'Check-in date (YYYY-MM-DD)' })
   @ApiQuery({ name: 'checkOut', required: false, description: 'Check-out date (YYYY-MM-DD)' })
   @ApiQuery({ name: 'adults', required: false, description: 'Number of adults' })
@@ -65,14 +72,14 @@ export class PublicHotelsController {
     description: 'Hotel not found',
   })
   async getHotelDetail(
-    @Param('hotelId') hotelId: string,
+    @Param('hotelIdOrSlug') hotelIdOrSlug: string,
     @Query('checkIn') checkIn?: string,
     @Query('checkOut') checkOut?: string,
     @Query('adults') adults?: string,
     @Query('rooms') rooms?: string,
   ): Promise<HotelDetailResponseDto> {
     const result = await this.hotelsService.getPublicHotelDetail(
-      hotelId,
+      hotelIdOrSlug,
       checkIn,
       checkOut,
       adults ? parseInt(adults, 10) : undefined,
@@ -80,7 +87,7 @@ export class PublicHotelsController {
     );
 
     if (!result) {
-      throw new NotFoundException(`Hotel with ID ${hotelId} not found`);
+      throw new NotFoundException(`Hotel with ID or slug ${hotelIdOrSlug} not found`);
     }
 
     return result;

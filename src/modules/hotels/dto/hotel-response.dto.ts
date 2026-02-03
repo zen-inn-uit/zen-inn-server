@@ -1,5 +1,6 @@
 export class HotelSearchItemDto {
   id: string;
+  slug: string;
   name: string;
   city: string;
   address: string;
@@ -38,6 +39,7 @@ export class RoomDetailDto {
 export class HotelDetailResponseDto {
   hotel: {
     id: string;
+    slug: string;
     name: string;
     description: string | null;
     city: string;
@@ -47,6 +49,7 @@ export class HotelDetailResponseDto {
     rating: number | null;
     reviewCount: number;
     facilities: string[];
+    phone: string | null;
   };
   rooms: RoomDetailDto[];
 }

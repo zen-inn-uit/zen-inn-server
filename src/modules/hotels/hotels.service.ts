@@ -18,6 +18,17 @@ export class HotelsService {
     private readonly loggingService: LoggingService,
   ) {}
 
+  private slugify(text: string): string {
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')     // Replace spaces with -
+      .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+      .replace(/\-\-+/g, '-')   // Replace multiple - with single -
+      + '-' + Math.random().toString(36).substring(2, 7);
+  }
+
   /**
    * Lấy partner tương ứng với user và kiểm tra KYC đã được duyệt hay chưa.
    */
@@ -44,10 +55,13 @@ export class HotelsService {
   async createForUser(userId: string, dto: CreateHotelDto) {
     const partner = await this.getApprovedPartnerForUser(userId);
 
+    const slug = this.slugify(dto.name);
+
     const hotel = await this.prisma.hotel.create({
       data: {
         partnerId: partner.id,
         name: dto.name,
+        slug,
         address: dto.address,
         city: dto.city,
         country: dto.country,
@@ -156,7 +170,11 @@ export class HotelsService {
 
     const updateData: Record<string, unknown> = {};
 
-    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.name !== undefined) {
+        updateData.name = dto.name;
+        // Optionally update slug if name changes, but usually slugs are permanent or handled carefully.
+        // For now, let's keep slug stable to avoid breaking links, or invalidating SEO.
+    }
     if (dto.address !== undefined) updateData.address = dto.address;
     if (dto.city !== undefined) updateData.city = dto.city;
     if (dto.country !== undefined) updateData.country = dto.country;
@@ -241,32 +259,76 @@ export class HotelsService {
       status: HotelStatus.ACTIVE,
     };
 
-    if (dto.city) {
+    // Support both 'city' and 'location' parameters
+    const searchTerm = dto.city || dto.location;
+    if (searchTerm) {
       where.OR = [
-        { city: { contains: dto.city, mode: 'insensitive' } },
-        { address: { contains: dto.city, mode: 'insensitive' } },
-        { name: { contains: dto.city, mode: 'insensitive' } },
+        { city: { contains: searchTerm, mode: 'insensitive' } },
+        { address: { contains: searchTerm, mode: 'insensitive' } },
+        { name: { contains: searchTerm, mode: 'insensitive' } },
       ];
     }
 
-    // Availability check if dates are provided
-    // For V1, we still fetch hotels and filter, but a more robust implementation 
-    // would use a subquery or join with inventory.
-    
+    // Filter by star ratings
+    if (dto.starRatings && dto.starRatings.length > 0) {
+      where.starRating = { in: dto.starRatings };
+    }
+
+    // Filter by minimum rating
+    if (dto.minRating) {
+      where.starRating = { gte: dto.minRating };
+    }
+
+    // Build room filter
+    const roomWhere: any = {
+      ...(dto.adults ? { capacity: { gte: dto.adults } } : {}),
+    };
+
+    // Filter by room types
+    if (dto.roomTypes && dto.roomTypes.length > 0) {
+      roomWhere.roomType = { in: dto.roomTypes };
+    }
+
+    // Filter by amenities (if room has any of the specified amenities)
+    if (dto.amenities && dto.amenities.length > 0) {
+      roomWhere.amenities = {
+        some: {
+          amenity: {
+            name: { in: dto.amenities },
+          },
+        },
+      };
+    }
+
     // Fetch hotels with pagination
     const [hotels, total] = await Promise.all([
       this.prisma.hotel.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          city: true,
+          address: true,
+          starRating: true,
           images: {
             take: 1,
             orderBy: { displayOrder: 'asc' },
+            select: {
+              url: true,
+            },
           },
           rooms: {
-            where: {
-              ...(dto.adults ? { capacity: { gte: dto.adults } } : {}),
-            },
-            include: {
+            where: roomWhere,
+            select: {
+              id: true,
+              roomType: true,
+              capacity: true,
+              beds: {
+                select: {
+                  id: true,
+                },
+              },
               inventory: {
                 where: dto.checkIn && dto.checkOut
                   ? {
@@ -278,10 +340,16 @@ export class HotelsService {
                       isStopSell: false,
                     }
                   : undefined,
+                select: {
+                  price: true,
+                },
               },
               ratePlans: {
                 where: { active: true },
                 take: 1,
+                select: {
+                  basePrice: true,
+                },
               },
             },
           },
@@ -298,7 +366,7 @@ export class HotelsService {
       ? Math.ceil((new Date(dto.checkOut).getTime() - new Date(dto.checkIn).getTime()) / (1000 * 60 * 60 * 24))
       : 0;
 
-    const items = (hotels as any[])
+    let items = (hotels as any[])
       .filter(hotel => {
         // If dates provided, ensure at least one room has availability for ALL nights
         if (nights > 0) {
@@ -333,6 +401,7 @@ export class HotelsService {
 
         return {
           id: hotel.id,
+          slug: hotel.slug || hotel.id,
           name: hotel.name,
           city: hotel.city,
           address: hotel.address,
@@ -346,6 +415,23 @@ export class HotelsService {
           bedroomCount,
         };
       });
+
+    // Apply price filters after calculating prices
+    if (dto.minPrice !== undefined) {
+      items = items.filter(item => item.startingPrice !== null && item.startingPrice >= dto.minPrice!);
+    }
+    if (dto.maxPrice !== undefined) {
+      items = items.filter(item => item.startingPrice !== null && item.startingPrice <= dto.maxPrice!);
+    }
+
+    // Sort by price if requested (since we're filtering after fetch)
+    if (dto.sortBy === 'price_asc') {
+      items.sort((a, b) => {
+        if (a.startingPrice === null) return 1;
+        if (b.startingPrice === null) return -1;
+        return a.startingPrice - b.startingPrice;
+      });
+    }
 
     return {
       items,
@@ -425,6 +511,7 @@ export class HotelsService {
 
       return {
         id: hotel.id,
+        slug: hotel.slug || hotel.id,
         name: hotel.name,
         city: hotel.city,
         address: hotel.address,
@@ -451,7 +538,7 @@ export class HotelsService {
    * NOTE: V1 returns null for pricing/availability if dates not provided
    */
   async getPublicHotelDetail(
-    hotelId: string,
+    hotelIdOrSlug: string,
     checkIn?: string,
     checkOut?: string,
     adults?: number,
@@ -459,7 +546,10 @@ export class HotelsService {
   ): Promise<HotelDetailResponseDto | null> {
     const hotel = await this.prisma.hotel.findFirst({
       where: {
-        id: hotelId,
+        OR: [
+            { id: hotelIdOrSlug },
+            { slug: hotelIdOrSlug }
+        ],
         deletedAt: null,
         status: HotelStatus.ACTIVE,
       },
@@ -551,6 +641,7 @@ export class HotelsService {
     return {
       hotel: {
         id: hotel.id,
+        slug: hotel.slug,
         name: hotel.name,
         description: hotel.description,
         city: hotel.city,
@@ -560,6 +651,7 @@ export class HotelsService {
         rating: averageRating ? Math.round(averageRating * 10) / 10 : null,
         reviewCount,
         facilities,
+        phone: hotel.phone,
       },
       rooms: roomDtos,
     };
