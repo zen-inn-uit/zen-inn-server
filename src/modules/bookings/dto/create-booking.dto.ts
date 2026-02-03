@@ -10,10 +10,8 @@ import {
   IsInt,
   Min,
   IsOptional,
-  IsEnum,
   ValidateIf,
 } from 'class-validator';
-import { PaymentMethod } from '@prisma/client';
 
 export class CreateBookingDto {
   @ApiProperty({ description: 'Room ID' })
@@ -28,7 +26,7 @@ export class CreateBookingDto {
 
   @ApiProperty({
     description: 'Check-in date (ISO 8601)',
-    example: '2024-12-25',
+    example: '2026-02-25',
   })
   @IsDateString()
   @IsNotEmpty()
@@ -36,7 +34,7 @@ export class CreateBookingDto {
 
   @ApiProperty({
     description: 'Check-out date (ISO 8601)',
-    example: '2024-12-27',
+    example: '2026-02-27',
   })
   @IsDateString()
   @IsNotEmpty()
@@ -67,14 +65,6 @@ export class CreateBookingDto {
   @IsInt()
   @Min(1)
   guestCount: number;
-
-  @ApiProperty({
-    description: 'Payment method',
-    enum: PaymentMethod,
-    example: PaymentMethod.SEPAY as PaymentMethod,
-  })
-  @IsEnum(PaymentMethod)
-  paymentMethod: PaymentMethod;
 
   @ApiProperty({ description: 'Special requests', required: false })
   @IsOptional()

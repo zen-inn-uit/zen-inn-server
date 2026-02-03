@@ -12,13 +12,13 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import type { RawBodyRequest } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
   ApiParam,
   ApiResponse,
+  ApiOkResponse,
 } from '@nestjs/swagger';
 import { BookingsService } from './bookings.service';
 import {
@@ -26,6 +26,7 @@ import {
   UpdateBookingDto,
   CancelBookingDto,
   QueryBookingDto,
+  BookingCalendarResponseDto,
 } from './dto';
 import { JwtAccessGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -55,6 +56,73 @@ export class BookingsController {
   ) {}
 
   // ========== Customer Endpoints ==========
+
+  @Post('reserve')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Reserve and confirm a room (DEMO: No payment, instant confirmation)',
+    description: 'Bypass payment - instant booking confirmation. Returns success immediately if room is available.'
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Room booked and confirmed successfully - redirect to success page',
+    schema: {
+      example: {
+        success: true,
+        booking: {
+          id: 'clz1234567890',
+          status: 'CONFIRMED',
+          paymentStatus: 'COMPLETED',
+          checkIn: '2026-02-25T00:00:00.000Z',
+          checkOut: '2026-02-27T00:00:00.000Z',
+          totalPrice: 2200000,
+          nightCount: 2,
+          guestCount: 2,
+          guestName: 'Nguyễn Văn A',
+          guestEmail: 'nguyenvana@example.com',
+          guestPhone: '+84123456789',
+          paymentMethod: 'CASH',
+          room: {
+            id: 'room-id',
+            name: 'Deluxe Double Room',
+            hotel: {
+              id: 'hotel-id',
+              name: 'Zen Inn Hanoi'
+            }
+          }
+        },
+        message: 'Booking confirmed successfully! Redirect to success page.',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Room already booked or another user is booking (Redis lock)',
+    schema: {
+      example: {
+        statusCode: 409,
+        message: 'Another booking is being processed for this room and dates. Please try again in a few seconds.',
+        error: 'Conflict'
+      }
+    }
+  })
+  async reserveBooking(@Req() req: AuthRequest, @Body() dto: CreateBookingDto) {
+    const userId = req.user.sub;
+    return this.bookingsService.reserveBooking(userId, dto);
+  }
+
+  @Post(':id/confirm')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Confirm booking after payment' })
+  @ApiParam({ name: 'id', description: 'Booking ID' })
+  async confirmBooking(@Req() req: AuthRequest, @Param('id') id: string) {
+    const userId = req.user.sub;
+    return this.bookingsService.confirmBookingAfterPayment(id, userId);
+  }
 
   @Post()
   @UseGuards(JwtAccessGuard, RolesGuard)
@@ -248,7 +316,7 @@ export class BookingsController {
 
   // ========== Partner Endpoints ==========
 
-  @Get('partners/bookings')
+  @Get('partner/list')
   @UseGuards(JwtAccessGuard, RolesGuard)
   @Roles(Role.PARTNER)
   @ApiBearerAuth()
@@ -256,6 +324,37 @@ export class BookingsController {
   @ApiResponse({
     status: 200,
     description: 'List of bookings for partner hotels',
+    schema: {
+      example: {
+        statusCode: 200,
+        message: 'OK',
+        data: {
+          data: [
+            {
+              id: 'booking-id',
+              status: 'CONFIRMED',
+              checkIn: '2026-02-01T00:00:00.000Z',
+              checkOut: '2026-02-03T00:00:00.000Z',
+              guestName: 'John Doe',
+              guestEmail: 'john@example.com',
+              guestPhone: '+84123456789',
+              guestCount: 2,
+              totalPrice: 200,
+              room: {
+                id: 'room-id',
+                name: 'Deluxe Room',
+                hotel: { id: 'hotel-id', name: 'Zen Inn Hanoi' },
+              },
+              user: {
+                id: 'user-id',
+                email: 'customer@example.com',
+              },
+            },
+          ],
+          meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
+        },
+      },
+    },
   })
   async getPartnerBookings(
     @Req() req: AuthRequest,
@@ -265,7 +364,52 @@ export class BookingsController {
     return this.bookingsService.getBookingsForPartner(userId, query);
   }
 
-  @Patch(':id/status')
+  @Get('partner/:id')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles(Role.PARTNER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get booking detail (Partner only)' })
+  @ApiParam({ name: 'id', description: 'Booking ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking details for partner',
+  })
+  async getPartnerBookingById(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+  ) {
+    const userId = req.user.sub;
+    return await this.bookingsService.getBookingByIdForPartner(userId, id);
+  }
+
+  @Get('partner/calendar/:year/:month')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles(Role.PARTNER)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get bookings calendar view for a specific month (Partner only)',
+  })
+  @ApiParam({ name: 'year', description: 'Year (e.g., 2026)' })
+  @ApiParam({ name: 'month', description: 'Month (1-12)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Calendar view of bookings grouped by date',
+  })
+  @ApiOkResponse({ type: BookingCalendarResponseDto })
+  async getPartnerBookingsCalendar(
+    @Req() req: AuthRequest,
+    @Param('year') year: string,
+    @Param('month') month: string,
+  ) {
+    const userId = req.user.sub;
+    return await this.bookingsService.getBookingsCalendarForPartner(
+      userId,
+      parseInt(year),
+      parseInt(month),
+    );
+  }
+
+  @Patch('partner/:id/status')
   @UseGuards(JwtAccessGuard, RolesGuard)
   @Roles(Role.PARTNER)
   @ApiBearerAuth()
@@ -273,48 +417,51 @@ export class BookingsController {
   @ApiParam({ name: 'id', description: 'Booking ID' })
   @ApiResponse({ status: 200, description: 'Booking status updated' })
   async updateBookingStatus(
+    @Req() req: AuthRequest,
     @Param('id') id: string,
     @Body('status') status: BookingStatus,
   ) {
-    return this.bookingsService.updateBookingStatus(id, status);
+    const userId = req.user.sub;
+    return await this.bookingsService.updateBookingStatusByPartner(
+      userId,
+      id,
+      status,
+    );
   }
 
   // ========== Webhook Endpoint ==========
 
-  @Post('webhook/sepay')
+  @Get('webhook/vnpay')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'SEPAY payment webhook' })
-  @ApiResponse({ status: 200, description: 'Webhook processed' })
-  async handleSepayWebhook(@Req() req: RawBodyRequest<Request>) {
+  @ApiOperation({ summary: 'VNPAY payment IPN' })
+  @ApiResponse({ status: 200, description: 'IPN processed' })
+  async handleVnpayIpn(@Query() query: Record<string, string>) {
     try {
-      // Get raw body for signature verification
-      const signature = req.headers['x-sepay-signature'] as string;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const rawBody = req.body;
+      this.logger.log('Received VNPAY IPN');
 
       // Verify webhook signature
-      if (signature) {
-        const isValid = this.paymentService.verifyWebhookSignature(
-          JSON.stringify(rawBody),
-          signature,
-        );
+      const isValid = this.paymentService.verifyWebhookSignature(query);
 
-        if (!isValid) {
-          this.logger.warn('Invalid webhook signature');
-          return { success: false, message: 'Invalid signature' };
-        }
+      if (!isValid) {
+        this.logger.warn('Invalid VNPAY IPN signature');
+        return { RspCode: '97', Message: 'Invalid signature' };
       }
 
       // Parse webhook payload
-      const payload = this.paymentService.parseWebhookPayload(rawBody);
+      const payload = this.paymentService.parseWebhookPayload(query);
 
       this.logger.log(
-        `Received webhook for payment: ${payload.paymentIntentId}`,
+        `Received IPN for payment: ${payload.paymentIntentId}, booking: ${
+          payload.bookingId ?? 'unknown'
+        }`,
       );
 
-      const booking = await this.bookingsService['prisma'].booking.findFirst({
+      // Find booking by ID
+      const booking = await this.bookingsService
+        .getPrismaClient()
+        .booking.findFirst({
         where: {
-          paymentIntentId: payload.paymentIntentId,
+            id: payload.bookingId ?? '',
         },
       });
 
