@@ -66,6 +66,66 @@ export class AIPlannerService {
       this.logger.log(`Parsed details: ${JSON.stringify(tripDetails)}`);
     }
 
+    // Step 2: Fetch available hotels from destination
+    let hotelsContext = '';
+    try {
+      const destinationCity = tripDetails.destination?.split(',')[0].trim();
+      const hotels = await this.prisma.hotel.findMany({
+        where: {
+          city: {
+            contains: destinationCity,
+            mode: 'insensitive',
+          },
+          status: 'ACTIVE',
+          deletedAt: null,
+        },
+        include: {
+          rooms: {
+            select: {
+              id: true,
+              name: true,
+              capacity: true,
+              ratePlans: {
+                where: { active: true },
+                select: {
+                  basePrice: true,
+                },
+                take: 1,
+              },
+            },
+            take: 3,
+          },
+        },
+        take: 5,
+      });
+
+      if (hotels.length > 0) {
+        hotelsContext = '\n\n## KHÁCH SẠN CÓ SẴN TẠI ĐIỂM ĐẾN:\n';
+        hotels.forEach((hotel, idx) => {
+          hotelsContext += `\n${idx + 1}. **${hotel.name}**\n`;
+          hotelsContext += `   - Địa chỉ: ${hotel.address}, ${hotel.city}\n`;
+          if (hotel.description) {
+            hotelsContext += `   - Mô tả: ${hotel.description.substring(0, 150)}...\n`;
+          }
+          if (hotel.starRating) {
+            hotelsContext += `   - Xếp hạng: ${hotel.starRating} sao\n`;
+          }
+          if (hotel.rooms.length > 0) {
+            hotelsContext += `   - Phòng có sẵn:\n`;
+            hotel.rooms.forEach(room => {
+              const basePrice = room.ratePlans[0]?.basePrice || 0;
+              hotelsContext += `     • ${room.name}: ${basePrice.toLocaleString('vi-VN')} VNĐ/đêm (${room.capacity} khách)\n`;
+            });
+          }
+        });
+        
+        this.logger.log(`Found ${hotels.length} hotels in ${destinationCity}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to fetch hotels: ${error.message}`);
+      // Continue without hotel context
+    }
+
     let hotelInfo = '';
     if (dto.hotelId) {
       const hotel = await this.prisma.hotel.findUnique({
@@ -84,7 +144,7 @@ Recent Guest Feedback: ${hotel.reviews.map(r => r.comment).join('; ')}
       }
     }
 
-    const prompt = this.createPrompt({ ...dto, ...tripDetails }, hotelInfo);
+    const prompt = this.createPrompt({ ...dto, ...tripDetails }, hotelInfo, hotelsContext);
     const startTime = Date.now();
     this.logger.log(`Starting AI trip generation for ${tripDetails.destination}...`);
 
@@ -234,38 +294,62 @@ Rules:
   }
 
 
-  private createPrompt(dto: GenerateTripDto, hotelInfo: string): string {
+  private createPrompt(dto: GenerateTripDto, hotelInfo: string, hotelsContext: string = ''): string {
     // These should be guaranteed to exist after parsing, but add safety checks
     const checkIn = dto.checkIn || new Date();
     const checkOut = dto.checkOut || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
     const durationDays = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
     
-    return `Create a concise ${durationDays}-day itinerary for ${dto.destination || 'the destination'}.
-Dates: ${checkIn.toDateString()} to ${checkOut.toDateString()}
-Guests: ${dto.adults || 2}A, ${dto.children || 0}C
-Budget: ${dto.budget || 'Moderate'}
-Vibe: ${dto.preferences?.join(', ') || 'Mixed'}
-${dto.description ? `Note: ${dto.description}` : ''}
+    return `Tạo lịch trình chi tiết ${durationDays} ngày cho chuyến đi đến ${dto.destination || 'điểm đến'}.
+Ngày: ${checkIn.toDateString()} đến ${checkOut.toDateString()}
+Khách: ${dto.adults || 2} người lớn, ${dto.children || 0} trẻ em
+Ngân sách: ${dto.budget || 'Vừa phải'}
+Sở thích: ${dto.preferences?.join(', ') || 'Tổng hợp'}
+${dto.description ? `Ghi chú: ${dto.description}` : ''}
 ${hotelInfo}
+${hotelsContext}
 
-Requirements:
-1. MAX 2-3 activities/day for faster generation.
-2. Keep "description" under 12 words.
-3. JSON ONLY. No text before/after.
-Structure:
+${hotelsContext ? `
+⚠️ QUAN TRỌNG: 
+- Sử dụng thông tin khách sạn CÓ SẴN ở trên khi gợi ý lưu trú
+- Tên khách sạn phải CHÍNH XÁC từ danh sách
+- Giá phòng phải DỰA VÀO thông tin thực tế đã cung cấp
+- Nếu không có khách sạn nào phù hợp, có thể gợi ý khách sạn khác nhưng ghi rõ "gợi ý tương tự"
+` : ''}
+
+Yêu cầu:
+1. MỖI NGÀY có 4-6 hoạt động (bao gồm ăn sáng, ăn trưa, ăn tối, và 2-3 hoạt động khác).
+2. Mô tả ngắn gọn, dưới 20 từ tiếng Việt.
+3. Giá cả thực tế theo VNĐ (VD: "50.000 VNĐ", "200.000 VNĐ/người").
+4. Location cụ thể (tên quán/địa điểm + địa chỉ ngắn gọn).
+5. CHỈ TRẢ VỀ JSON. Không có text trước/sau.
+6. Tất cả nội dung phải bằng TIẾNG VIỆT.
+7. Ngày đầu tiên phải có CHECK_IN với tên khách sạn từ danh sách có sẵn (nếu có).
+8. Ngày cuối cùng phải có CHECK_OUT.
+
+Cấu trúc JSON:
 {
   "days": [
     {
       "dayNumber": 1,
       "activities": [
         {
-          "time": "09:00 AM",
-          "name": "...",
-          "description": "...",
-          "type": "DINING|ACTIVITY|CHECK_IN|CHECK_OUT|EXPERIENCE|RELAXATION|TRANSPORTATION",
-          "location": "...",
-          "price": "...",
+          "time": "14:00",
+          "name": "Nhận phòng tại [TÊN KHÁCH SẠN THỰC TẾ]",
+          "description": "Check-in và nhận phòng",
+          "type": "CHECK_IN",
+          "location": "[ĐỊA CHỈ CHÍNH XÁC]",
+          "price": "[GIÁ PHÒNG THỰC TẾ] VNĐ/đêm",
           "displayOrder": 0
+        },
+        {
+          "time": "08:00",
+          "name": "Ăn sáng tại Phở Hà Nội",
+          "description": "Thưởng thức phở bò truyền thống với nước dùng ngọt thanh",
+          "type": "DINING",
+          "location": "Phở Hà Nội, 123 Đường Lê Lợi",
+          "price": "50.000 VNĐ/người",
+          "displayOrder": 1
         }
       ]
     }
