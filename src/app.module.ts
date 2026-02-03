@@ -21,6 +21,7 @@ import { CancellationPoliciesModule } from './modules/cancellation-policies/canc
 import { LoggingModule } from './modules/logging/logging.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { AIPlannerModule } from './modules/ai-planner/ai-planner.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { AIPlannerModule } from './modules/ai-planner/ai-planner.module';
     CancellationPoliciesModule,
     WishlistModule,
     AIPlannerModule,
+    ChatModule,
   ],
   controllers: [HealthController],
   providers: [

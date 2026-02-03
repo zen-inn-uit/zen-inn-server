@@ -25,7 +25,7 @@ services:
     image: docker.n8n.io/n8nio/n8n
     restart: unless-stopped
     ports:
-      - "5678:5678"
+      - '5678:5678'
     environment:
       - N8N_HOST=localhost
       - N8N_PORT=5678
@@ -34,6 +34,7 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
 
+  # Ngrok tunnel cho Frontend chạy trên máy thật (localhost:3000)
   ngrok:
     image: ngrok/ngrok:latest
     restart: unless-stopped
@@ -41,7 +42,10 @@ services:
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
     command:
       - 'http'
-      - '172.17.0.1:3000'
+      - 'host.docker.internal:3000'
+      - '--host-header=rewrite'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     ports:
       - '4040:4040'
 

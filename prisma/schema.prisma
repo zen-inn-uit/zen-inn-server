@@ -29,6 +29,7 @@ model User {
   wishlistItems   WishlistItem[]
   reviews         Review[]
   trips           Trip[]
+  conversations   Conversation[]
 }
 
 model WishlistItem {
@@ -59,6 +60,7 @@ model Hotel {
   id          String          @id @default(cuid())
   partnerId   String
   name        String
+  slug        String          @unique
   address     String
   createdAt   DateTime        @default(now())
   city        String
@@ -77,6 +79,7 @@ model Hotel {
   wishlistItems WishlistItem[]
   reviews     Review[]
   trips       Trip[]
+  conversations Conversation[]
 }
 
 model HotelImage {
@@ -413,6 +416,7 @@ enum PaymentStatus {
 
 enum PaymentMethod {
   SEPAY
+  VNPAY
   BANK_TRANSFER
   CASH
 }
@@ -473,5 +477,38 @@ enum ActivityType {
   EXPERIENCE
   RELAXATION
   TRANSPORTATION
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String
+  hotelId   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id])
+  hotel     Hotel     @relation(fields: [hotelId], references: [id])
+  messages  Message[]
+
+  @@unique([userId, hotelId])
+  @@index([userId])
+  @@index([hotelId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  senderType     SenderType
+  content        String
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+enum SenderType {
+  USER
+  HOTEL
 }
 
